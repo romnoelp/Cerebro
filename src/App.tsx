@@ -8,7 +8,7 @@ import {
 } from "./components/animate-ui/components/buttons/flip";
 import { Orbit } from "./components/animate-ui/icons/orbit";
 import { AnimateIcon } from "./components/animate-ui/icons/icon";
-import Dashboard from "./screens/Dashboard";
+import Layout from "./screens/Layout";
 import React from "react";
 import { type Screen } from "./types";
 
@@ -49,7 +49,7 @@ const App = () => {
   return (
     <AnimatePresence mode="wait">
       {screen === "session" ? (
-        <Dashboard key="session" />
+        <Layout key="session" />
       ) : (
         <motion.main
           key="intro"

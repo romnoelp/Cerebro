@@ -66,12 +66,7 @@ const AppSidebar = ({ selected, onSelect }: AppSidebarProps) => {
                 <FolderContent>
                   <SubFiles>
                     <FileBtn
-                      fileKey="connection"
-                      selected={selected}
-                      onSelect={onSelect}
-                    />
-                    <FileBtn
-                      fileKey="actions"
+                      fileKey="dashboard"
                       selected={selected}
                       onSelect={onSelect}
                     />
@@ -83,12 +78,6 @@ const AppSidebar = ({ selected, onSelect }: AppSidebarProps) => {
                   </SubFiles>
                 </FolderContent>
               </FolderItem>
-
-              <FileBtn
-                fileKey="dashboard"
-                selected={selected}
-                onSelect={onSelect}
-              />
 
               <FolderItem value="components">
                 <FolderTrigger>components</FolderTrigger>

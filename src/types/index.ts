@@ -2,8 +2,6 @@ export type Screen = "home" | "loading" | "session";
 
 export type AppFile =
   | "app"
-  | "connection"
-  | "actions"
   | "session"
   | "dashboard"
   | "appsidebar"

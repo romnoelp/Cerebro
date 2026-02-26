@@ -1,6 +1,4 @@
 import appRaw from '../App.tsx?raw';
-import connectionRaw from '../screens/Connection.tsx?raw';
-import actionsRaw from '../screens/Actions.tsx?raw';
 import sessionRaw from '../screens/Session.tsx?raw';
 import dashboardRaw from '../screens/Dashboard.tsx?raw';
 import appSidebarRaw from '../components/AppSidebar.tsx?raw';
@@ -16,8 +14,6 @@ import { type AppFile } from '../types';
 
 export const FILE_LABELS: Record<AppFile, string> = {
   app: 'App.tsx',
-  connection: 'Connection.tsx',
-  actions: 'Actions.tsx',
   session: 'Session.tsx',
   dashboard: 'Dashboard.tsx',
   appsidebar: 'AppSidebar.tsx',
@@ -31,8 +27,6 @@ export const FILE_LABELS: Record<AppFile, string> = {
 
 export const FILE_SOURCE: Record<AppFile, string> = {
   app: appRaw,
-  connection: connectionRaw,
-  actions: actionsRaw,
   session: sessionRaw,
   dashboard: dashboardRaw,
   appsidebar: appSidebarRaw,
@@ -45,4 +39,4 @@ export const FILE_SOURCE: Record<AppFile, string> = {
 };
 
 /** Files that render their live component (not source code) */
-export const LIVE_SCREENS: AppFile[] = ['connection', 'actions', 'session'];
+export const LIVE_SCREENS: AppFile[] = ['session', 'dashboard'];
