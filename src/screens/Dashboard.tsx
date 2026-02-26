@@ -1,33 +1,48 @@
+import React from "react";
 import { motion } from "motion/react";
+import AppSidebar from "@/components/AppSidebar";
+import CodeView from "@/components/CodeView";
+import { FILE_LABELS, FILE_SOURCE, LIVE_SCREENS } from "@/lib/file-contents";
+import { type AppFile } from "@/types";
+import ConnectionScreen from "./Connection";
+import ActionsScreen from "./Actions";
+import SessionScreen from "./Session";
 
-const SessionScreen = () => {
+const LIVE_COMPONENTS: Record<string, React.ReactNode> = {
+  connection: <ConnectionScreen />,
+  actions: <ActionsScreen />,
+  session: <SessionScreen />,
+};
+
+const Dashboard = () => {
+  const [selected, setSelected] = React.useState<AppFile>("connection");
+
+  const isLive = LIVE_SCREENS.includes(selected);
+
   return (
-    <motion.main
-      key="session"
-      className="w-screen h-screen flex items-center justify-center bg-white"
+    <motion.div
+      key="dashboard"
+      className="w-screen h-screen flex bg-white overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-      <div className="flex flex-col items-center gap-4 text-center px-8">
-        <motion.h2
-          className="text-4xl font-bold text-black"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-          Session Active
-        </motion.h2>
-        <motion.p
-          className="text-black/70 text-lg max-w-md"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-          Your neural session has been initialised. Cerebro is ready to process
-          your signals.
-        </motion.p>
-      </div>
-    </motion.main>
+      {/* Left sidebar — 1/4, state persists across file changes */}
+      <AppSidebar selected={selected} onSelect={setSelected} />
+
+      {/* Main content — 3/4 */}
+      <main className="w-3/4 h-full overflow-hidden">
+        {isLive ? (
+          LIVE_COMPONENTS[selected]
+        ) : (
+          <CodeView
+            filename={FILE_LABELS[selected]}
+            source={FILE_SOURCE[selected]}
+          />
+        )}
+      </main>
+    </motion.div>
   );
 };
 
-export default SessionScreen;
+export default Dashboard;

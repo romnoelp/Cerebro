@@ -8,10 +8,9 @@ import {
 } from "./components/animate-ui/components/buttons/flip";
 import { Orbit } from "./components/animate-ui/icons/orbit";
 import { AnimateIcon } from "./components/animate-ui/icons/icon";
-import SessionScreen from "./screens/Dashboard";
+import Dashboard from "./screens/Dashboard";
 import React from "react";
-
-type Screen = "home" | "loading" | "session";
+import { type Screen } from "./types";
 
 const LOADING_STEPS = [
   "Building new session...",
@@ -50,7 +49,7 @@ const App = () => {
   return (
     <AnimatePresence mode="wait">
       {screen === "session" ? (
-        <SessionScreen key="session" />
+        <Dashboard key="session" />
       ) : (
         <motion.main
           key="intro"
