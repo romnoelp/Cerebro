@@ -25,6 +25,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-use-measure": "^2.1.7",
+    "recharts": "2.15.4",
     "shiki": "^3.23.0",
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1"
