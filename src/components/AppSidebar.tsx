@@ -1,12 +1,32 @@
+import * as React from "react";
 import {
-  FileItem,
-  FolderItem,
-  FolderTrigger,
-  FolderContent,
-  Files,
-  SubFiles,
-} from "@/components/animate-ui/components/radix/files";
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarRail,
+  SidebarGroup,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+} from "@/components/animate-ui/components/radix/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/animate-ui/components/radix/dropdown-menu";
+import {
+  ChevronsUpDown,
+  LayoutDashboard,
+  BrainCircuit,
+  Settings,
+} from "lucide-react";
 import { type AppFile, FILE_LABELS } from "@/lib/file-contents";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export type { AppFile } from "@/types";
 
@@ -15,157 +35,102 @@ interface AppSidebarProps {
   onSelect: (file: AppFile) => void;
 }
 
-const FileBtn = ({
-  fileKey,
-  selected,
-  onSelect,
-}: {
-  fileKey: AppFile;
-  selected: AppFile;
-  onSelect: (f: AppFile) => void;
-}) => {
-  return (
-    <button onClick={() => onSelect(fileKey)} className="w-full text-left">
-      <FileItem
-        className={selected === fileKey ? "font-semibold text-foreground" : ""}>
-        {FILE_LABELS[fileKey]}
-      </FileItem>
-    </button>
-  );
-};
+const NAV_SCREENS: { key: AppFile; icon: React.ElementType }[] = [
+  { key: "dashboard", icon: LayoutDashboard },
+  { key: "session", icon: BrainCircuit },
+];
 
 const AppSidebar = ({ selected, onSelect }: AppSidebarProps) => {
+  const isMobile = useIsMobile();
+
   return (
-    <aside className="w-1/4 h-full border-r overflow-auto shrink-0">
-      <Files
-        className="w-full"
-        defaultOpen={[
-          "src",
-          "(home)",
-          "components",
-          "animate-ui",
-          "backgrounds",
-          "buttons",
-          "radix",
-        ]}>
-        <FolderItem value="src">
-          <FolderTrigger>src</FolderTrigger>
+    <Sidebar collapsible="icon">
+      {/* Header */}
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <BrainCircuit className="size-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Cerebro</span>
+                    <span className="truncate text-xs">EEG Interface</span>
+                  </div>
+                  <ChevronsUpDown className="ml-auto" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                align="start"
+                side={isMobile ? "bottom" : "right"}
+                sideOffset={4}>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Workspace
+                </DropdownMenuLabel>
+                <DropdownMenuItem className="gap-2 p-2">
+                  <div className="flex size-6 items-center justify-center rounded-sm border bg-background">
+                    <BrainCircuit className="size-4 shrink-0" />
+                  </div>
+                  <span className="font-medium">Cerebro EEG MK-1</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem className="gap-2 p-2">
+                    <Settings className="size-4 text-muted-foreground" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-          <FolderContent>
-            <SubFiles
-              defaultOpen={[
-                "(home)",
-                "components",
-                "animate-ui",
-                "backgrounds",
-                "buttons",
-                "radix",
-              ]}>
-              <FolderItem value="(home)">
-                <FolderTrigger>(home)</FolderTrigger>
-                <FolderContent>
-                  <SubFiles>
-                    <FileBtn
-                      fileKey="dashboard"
-                      selected={selected}
-                      onSelect={onSelect}
-                    />
-                    <FileBtn
-                      fileKey="session"
-                      selected={selected}
-                      onSelect={onSelect}
-                    />
-                  </SubFiles>
-                </FolderContent>
-              </FolderItem>
+      {/* Content */}
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            {NAV_SCREENS.map(({ key, icon: Icon }) => (
+              <SidebarMenuItem key={key}>
+                <SidebarMenuButton
+                  tooltip={FILE_LABELS[key]}
+                  isActive={selected === key}
+                  onClick={() => onSelect(key)}>
+                  <Icon />
+                  <span>{FILE_LABELS[key]}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
 
-              <FolderItem value="components">
-                <FolderTrigger>components</FolderTrigger>
-                <FolderContent>
-                  <SubFiles
-                    defaultOpen={[
-                      "animate-ui",
-                      "backgrounds",
-                      "buttons",
-                      "radix",
-                    ]}>
-                    <FileBtn
-                      fileKey="appsidebar"
-                      selected={selected}
-                      onSelect={onSelect}
-                    />
+      {/* Footer */}
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" className="cursor-default">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
+                <BrainCircuit className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">Cerebro</span>
+                <span className="truncate text-xs text-muted-foreground">
+                  v0.1.0
+                </span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
 
-                    <FolderItem value="animate-ui">
-                      <FolderTrigger>animate-ui</FolderTrigger>
-                      <FolderContent>
-                        <SubFiles
-                          defaultOpen={["backgrounds", "buttons", "radix"]}>
-                          <FolderItem value="backgrounds">
-                            <FolderTrigger>backgrounds</FolderTrigger>
-                            <FolderContent>
-                              <SubFiles>
-                                <FileBtn
-                                  fileKey="comp-gravity-stars"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                              </SubFiles>
-                            </FolderContent>
-                          </FolderItem>
-
-                          <FolderItem value="buttons">
-                            <FolderTrigger>buttons</FolderTrigger>
-                            <FolderContent>
-                              <SubFiles>
-                                <FileBtn
-                                  fileKey="comp-button"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                                <FileBtn
-                                  fileKey="comp-flip"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                                <FileBtn
-                                  fileKey="comp-liquid"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                              </SubFiles>
-                            </FolderContent>
-                          </FolderItem>
-
-                          <FolderItem value="radix">
-                            <FolderTrigger>radix</FolderTrigger>
-                            <FolderContent>
-                              <SubFiles>
-                                <FileBtn
-                                  fileKey="comp-files"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                                <FileBtn
-                                  fileKey="comp-progress"
-                                  selected={selected}
-                                  onSelect={onSelect}
-                                />
-                              </SubFiles>
-                            </FolderContent>
-                          </FolderItem>
-                        </SubFiles>
-                      </FolderContent>
-                    </FolderItem>
-                  </SubFiles>
-                </FolderContent>
-              </FolderItem>
-
-              <FileBtn fileKey="app" selected={selected} onSelect={onSelect} />
-            </SubFiles>
-          </FolderContent>
-        </FolderItem>
-      </Files>
-    </aside>
+      <SidebarRail />
+    </Sidebar>
   );
 };
 

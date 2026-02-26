@@ -14,8 +14,8 @@ import { type AppFile } from '../types';
 
 export const FILE_LABELS: Record<AppFile, string> = {
   app: 'App.tsx',
-  session: 'Session.tsx',
-  dashboard: 'Dashboard.tsx',
+  session: 'Session',
+  dashboard: 'Dashboard',
   appsidebar: 'AppSidebar.tsx',
   'comp-gravity-stars': 'gravity-stars.tsx',
   'comp-button': 'button.tsx',

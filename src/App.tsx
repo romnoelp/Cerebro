@@ -158,7 +158,7 @@ const App = () => {
                 <div className="flex flex-col gap-y-4 w-80">
                   <Progress
                     value={progress}
-                    className="h-[3px] w-full bg-border/40"
+                    className="h-0.75 w-full bg-border/40"
                   />
 
                   {/* Step message */}

@@ -6,6 +6,10 @@ import { FILE_LABELS, FILE_SOURCE, LIVE_SCREENS } from "@/lib/file-contents";
 import { type AppFile } from "@/types";
 import SessionScreen from "./Session";
 import DashboardScreen from "./Dashboard";
+import {
+  SidebarProvider,
+  SidebarInset,
+} from "@/components/animate-ui/components/radix/sidebar";
 
 const LIVE_COMPONENTS: Record<string, React.ReactNode> = {
   session: <SessionScreen />,
@@ -20,25 +24,27 @@ const Layout = () => {
   return (
     <motion.div
       key="dashboard"
-      className="w-screen h-screen flex bg-white overflow-hidden"
+      className="w-screen h-screen overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-      {/* Left sidebar — 1/4, state persists across file changes */}
-      <AppSidebar selected={selected} onSelect={setSelected} />
+      <SidebarProvider>
+        {/* Sidebar — state persists across file changes */}
+        <AppSidebar selected={selected} onSelect={setSelected} />
 
-      {/* Main content — 3/4 */}
-      <main className="w-3/4 h-full overflow-hidden">
-        {isLive ? (
-          LIVE_COMPONENTS[selected]
-        ) : (
-          <CodeView
-            filename={FILE_LABELS[selected]}
-            source={FILE_SOURCE[selected]}
-          />
-        )}
-      </main>
+        {/* Main content */}
+        <SidebarInset className="overflow-hidden">
+          {isLive ? (
+            LIVE_COMPONENTS[selected]
+          ) : (
+            <CodeView
+              filename={FILE_LABELS[selected]}
+              source={FILE_SOURCE[selected]}
+            />
+          )}
+        </SidebarInset>
+      </SidebarProvider>
     </motion.div>
   );
 };
