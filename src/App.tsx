@@ -51,7 +51,7 @@ const App = () => {
 
   return (
     <>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" theme="dark" />
       <AnimatePresence mode="wait">
         {screen === "session" ? (
           <Layout key="session" />
