@@ -8,7 +8,7 @@ import { LiquidButton } from "./components/animate-ui/components/buttons/liquid"
 import { Progress } from "./components/animate-ui/components/radix/progress";
 import Layout from "./screens/Layout";
 import { type Screen } from "./types";
-import { Toaster } from "./components/ui/sonner";
+import { Toaster } from "sileo";
 
 const LOADING_STEPS = [
   "Building new session...",
@@ -51,7 +51,7 @@ const App = () => {
 
   return (
     <>
-      <Toaster />
+      <Toaster position="top-right" />
       <AnimatePresence mode="wait">
         {screen === "session" ? (
           <Layout key="session" />

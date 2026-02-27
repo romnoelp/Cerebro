@@ -1,13 +1,6 @@
 import * as React from "react";
-import {
-  IconBrain,
-  IconChartBar,
-  IconDashboard,
-  IconFolder,
-  IconListDetails,
-  IconSettings,
-  IconUsers,
-} from "@tabler/icons-react";
+import { IconDashboard, IconWaveSine } from "@tabler/icons-react";
+import neuralNetwork from "@/assets/neuralNetwork.svg";
 import {
   Sidebar,
   SidebarContent,
@@ -18,7 +11,6 @@ import {
   SidebarMenuItem,
 } from "@/components/animate-ui/components/radix/sidebar";
 import { NavMain } from "@/components/nav-main";
-import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import { type AppFile } from "@/types";
 
@@ -34,9 +26,9 @@ interface AppSidebarProps extends Omit<
 
 const data = {
   user: {
-    name: "Cerebro User",
-    email: "user@cerebro.app",
-    avatar: "/avatars/user.jpg",
+    name: "romnoelp",
+    email: "romnoel.petracorta@neu.edu.ph",
+    avatar: "/avatars/romnoelp.jpg",
   },
   navMain: [
     {
@@ -45,36 +37,25 @@ const data = {
       icon: IconDashboard,
     },
     {
-      title: "Lifecycle",
+      title: "Session",
       url: "#",
-      icon: IconListDetails,
-    },
-    {
-      title: "Analytics",
-      url: "#",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "#",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "#",
-      icon: IconUsers,
+      icon: IconWaveSine,
     },
   ],
-
-  navSecondary: [{ title: "Settings", url: "#", icon: IconSettings }],
 };
 
 const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
   const navItems = data.navMain.map((item) => ({
     ...item,
-    isActive: item.title === "Dashboard" && selected === "dashboard",
+    isActive:
+      (item.title === "Dashboard" && selected === "dashboard") ||
+      (item.title === "Session" && selected === "session"),
     onClick:
-      item.title === "Dashboard" ? () => onSelect("dashboard") : undefined,
+      item.title === "Dashboard"
+        ? () => onSelect("dashboard")
+        : item.title === "Session"
+          ? () => onSelect("session")
+          : undefined,
   }));
 
   return (
@@ -86,7 +67,11 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!">
               <a href="#">
-                <IconBrain className="size-5!" />
+                <img
+                  src={neuralNetwork}
+                  alt="Cerebro"
+                  className="size-5 dark:invert"
+                />
                 <span className="text-base font-semibold">Cerebro</span>
               </a>
             </SidebarMenuButton>
@@ -95,7 +80,6 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={navItems} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

@@ -1,11 +1,15 @@
 import React from "react";
 import { motion } from "motion/react";
+import { useTheme } from "next-themes";
 import AppSidebar from "@/components/AppSidebar";
 import CodeView from "@/components/CodeView";
 import { FILE_LABELS, FILE_SOURCE, LIVE_SCREENS } from "@/lib/file-contents";
 import { type AppFile } from "@/types";
 import SessionScreen from "./Session";
 import DashboardScreen from "./Dashboard";
+import { SiteHeader } from "@/components/site-header";
+import { StarsBackground } from "@/components/animate-ui/components/backgrounds/stars";
+import { cn } from "@/lib/utils";
 import {
   SidebarProvider,
   SidebarInset,
@@ -18,6 +22,7 @@ const LIVE_COMPONENTS: Record<string, React.ReactNode> = {
 
 const Layout = () => {
   const [selected, setSelected] = React.useState<AppFile>("dashboard");
+  const { resolvedTheme } = useTheme();
 
   const isLive = LIVE_SCREENS.includes(selected);
 
@@ -40,7 +45,15 @@ const Layout = () => {
         <AppSidebar selected={selected} onSelect={setSelected} />
 
         {/* Main content */}
-        <SidebarInset>
+        <SidebarInset className="relative overflow-hidden bg-transparent!">
+          <StarsBackground
+            starColor={resolvedTheme === "dark" ? "#FFF" : "#000"}
+            className={cn(
+              "absolute inset-0 -z-10",
+              "dark:bg-[radial-gradient(ellipse_at_bottom,#262626_0%,#000_100%)] bg-[radial-gradient(ellipse_at_bottom,#f5f5f5_0%,#fff_100%)]",
+            )}
+          />
+          <SiteHeader page={selected} />
           {isLive ? (
             LIVE_COMPONENTS[selected]
           ) : (
