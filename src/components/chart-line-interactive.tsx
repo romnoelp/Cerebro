@@ -48,18 +48,47 @@ const chartConfig = {
 
 export function ChartLineInteractive({
   isRunning = false,
+  shouldReset = false,
+  hasStarted = false,
   className,
 }: {
   isRunning?: boolean;
+  shouldReset?: boolean;
+  hasStarted?: boolean;
   className?: string;
 }) {
   const [activeChart, setActiveChart] = React.useState<"alpha" | "theta">(
     "alpha",
   );
-  const [displayData, setDisplayData] = React.useState<DataPoint[]>(() =>
-    generateSeed(),
-  );
-  const counterRef = React.useRef(WINDOW + 1);
+  const [displayData, setDisplayData] = React.useState<DataPoint[]>(() => [
+    { second: 0, alpha: 0, theta: 0 },
+  ]);
+  const counterRef = React.useRef(0);
+
+  // Reset chart data when shouldReset is true
+  React.useEffect(() => {
+    if (shouldReset) {
+      // Reset to empty state when session is cleared
+      if (!hasStarted) {
+        setDisplayData([{ second: 0, alpha: 0, theta: 0 }]);
+        counterRef.current = 0;
+      } else {
+        // Reset with new seed data when starting fresh session
+        const newData = generateSeed();
+        setDisplayData(newData);
+        counterRef.current = WINDOW + 1;
+      }
+    }
+  }, [shouldReset, hasStarted]);
+
+  // Initialize with real data when session starts
+  React.useEffect(() => {
+    if (hasStarted && displayData.length === 1 && displayData[0].second === 0) {
+      const newData = generateSeed();
+      setDisplayData(newData);
+      counterRef.current = WINDOW + 1;
+    }
+  }, [hasStarted]);
 
   React.useEffect(() => {
     if (!isRunning) {
@@ -112,7 +141,7 @@ export function ChartLineInteractive({
   return (
     <Card
       className={cn(
-        "flex flex-col border-l-2 border-l-chart-1 from-primary/5 to-card bg-linear-to-t shadow-xs",
+        "flex flex-col border border-border/40 bg-background/20 backdrop-blur-sm",
         className,
       )}>
       <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">

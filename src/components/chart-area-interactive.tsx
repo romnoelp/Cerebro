@@ -160,7 +160,7 @@ export function ChartAreaInteractive() {
   });
 
   return (
-    <Card className="@container/card">
+    <Card className="@container/card border border-border/40 bg-background/20 backdrop-blur-sm">
       <CardHeader>
         <CardTitle>EEG Band Power</CardTitle>
         <CardDescription>

@@ -1,5 +1,5 @@
 import React from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
 import AppSidebar from "@/components/AppSidebar";
 import CodeView from "@/components/CodeView";
@@ -55,7 +55,11 @@ const Layout = () => {
           />
           <SiteHeader page={selected} />
           {isLive ? (
-            LIVE_COMPONENTS[selected]
+            <AnimatePresence mode="wait">
+              <React.Fragment key={selected}>
+                {LIVE_COMPONENTS[selected]}
+              </React.Fragment>
+            </AnimatePresence>
           ) : (
             <CodeView
               filename={FILE_LABELS[selected]}

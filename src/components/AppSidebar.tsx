@@ -28,7 +28,7 @@ const data = {
   user: {
     name: "romnoelp",
     email: "romnoel.petracorta@neu.edu.ph",
-    avatar: "/avatars/romnoelp.jpg",
+    avatar: "/avatars/Romy.jpg",
   },
   navMain: [
     {

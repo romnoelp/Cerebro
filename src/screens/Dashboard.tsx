@@ -1,9 +1,15 @@
+import { motion } from "motion/react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
 
 const DashboardScreen = () => {
   return (
-    <div className="flex flex-1 flex-col min-h-0 overflow-y-auto">
+    <motion.div
+      className="flex flex-1 flex-col min-h-0 overflow-y-auto"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
       <div className="@container/main flex flex-col gap-2">
         <div className="flex flex-col gap-4 py-4 md:gap-4 md:py-4">
           {/* Page header */}
@@ -16,7 +22,7 @@ const DashboardScreen = () => {
                 Brain activity overview &amp; signal metrics
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1">
+            <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground/50 opacity-75" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground/70" />
@@ -32,7 +38,7 @@ const DashboardScreen = () => {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
