@@ -29,12 +29,18 @@ const Layout = () => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
-      <SidebarProvider>
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 56)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }>
         {/* Sidebar — state persists across file changes */}
         <AppSidebar selected={selected} onSelect={setSelected} />
 
         {/* Main content */}
-        <SidebarInset className="overflow-hidden">
+        <SidebarInset>
           {isLive ? (
             LIVE_COMPONENTS[selected]
           ) : (

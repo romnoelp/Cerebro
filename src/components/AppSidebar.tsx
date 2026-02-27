@@ -1,135 +1,105 @@
 import * as React from "react";
 import {
+  IconBrain,
+  IconChartBar,
+  IconDashboard,
+  IconFolder,
+  IconListDetails,
+  IconSettings,
+  IconUsers,
+} from "@tabler/icons-react";
+import {
   Sidebar,
-  SidebarHeader,
   SidebarContent,
   SidebarFooter,
-  SidebarRail,
-  SidebarGroup,
+  SidebarHeader,
   SidebarMenu,
-  SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuItem,
 } from "@/components/animate-ui/components/radix/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/animate-ui/components/radix/dropdown-menu";
-import {
-  ChevronsUpDown,
-  LayoutDashboard,
-  BrainCircuit,
-  Settings,
-} from "lucide-react";
-import { type AppFile, FILE_LABELS } from "@/lib/file-contents";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { NavMain } from "@/components/nav-main";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavUser } from "@/components/nav-user";
+import { type AppFile } from "@/types";
 
 export type { AppFile } from "@/types";
 
-interface AppSidebarProps {
+interface AppSidebarProps extends Omit<
+  React.ComponentProps<typeof Sidebar>,
+  "onSelect"
+> {
   selected: AppFile;
   onSelect: (file: AppFile) => void;
 }
 
-const NAV_SCREENS: { key: AppFile; icon: React.ElementType }[] = [
-  { key: "dashboard", icon: LayoutDashboard },
-  { key: "session", icon: BrainCircuit },
-];
+const data = {
+  user: {
+    name: "Cerebro User",
+    email: "user@cerebro.app",
+    avatar: "/avatars/user.jpg",
+  },
+  navMain: [
+    {
+      title: "Dashboard",
+      url: "#",
+      icon: IconDashboard,
+    },
+    {
+      title: "Lifecycle",
+      url: "#",
+      icon: IconListDetails,
+    },
+    {
+      title: "Analytics",
+      url: "#",
+      icon: IconChartBar,
+    },
+    {
+      title: "Projects",
+      url: "#",
+      icon: IconFolder,
+    },
+    {
+      title: "Team",
+      url: "#",
+      icon: IconUsers,
+    },
+  ],
 
-const AppSidebar = ({ selected, onSelect }: AppSidebarProps) => {
-  const isMobile = useIsMobile();
+  navSecondary: [{ title: "Settings", url: "#", icon: IconSettings }],
+};
+
+const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
+  const navItems = data.navMain.map((item) => ({
+    ...item,
+    isActive: item.title === "Dashboard" && selected === "dashboard",
+    onClick:
+      item.title === "Dashboard" ? () => onSelect("dashboard") : undefined,
+  }));
 
   return (
-    <Sidebar collapsible="icon">
-      {/* Header */}
+    <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <BrainCircuit className="size-4" />
-                  </div>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Cerebro</span>
-                    <span className="truncate text-xs">EEG Interface</span>
-                  </div>
-                  <ChevronsUpDown className="ml-auto" />
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                align="start"
-                side={isMobile ? "bottom" : "right"}
-                sideOffset={4}>
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Workspace
-                </DropdownMenuLabel>
-                <DropdownMenuItem className="gap-2 p-2">
-                  <div className="flex size-6 items-center justify-center rounded-sm border bg-background">
-                    <BrainCircuit className="size-4 shrink-0" />
-                  </div>
-                  <span className="font-medium">Cerebro EEG MK-1</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem className="gap-2 p-2">
-                    <Settings className="size-4 text-muted-foreground" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-
-      {/* Content */}
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            {NAV_SCREENS.map(({ key, icon: Icon }) => (
-              <SidebarMenuItem key={key}>
-                <SidebarMenuButton
-                  tooltip={FILE_LABELS[key]}
-                  isActive={selected === key}
-                  onClick={() => onSelect(key)}>
-                  <Icon />
-                  <span>{FILE_LABELS[key]}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
-      </SidebarContent>
-
-      {/* Footer */}
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="cursor-default">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted">
-                <BrainCircuit className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Cerebro</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  v0.1.0
-                </span>
-              </div>
+            <SidebarMenuButton
+              asChild
+              className="data-[slot=sidebar-menu-button]:p-1.5!">
+              <a href="#">
+                <IconBrain className="size-5!" />
+                <span className="text-base font-semibold">Cerebro</span>
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <NavMain items={navItems} />
+        <NavSecondary items={data.navSecondary} className="mt-auto" />
+      </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={data.user} />
       </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   );
 };
