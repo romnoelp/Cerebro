@@ -204,31 +204,31 @@ export function ChartAreaInteractive() {
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-62.5 w-full">
+          className="aspect-auto h-52 w-full">
           <AreaChart data={filteredData}>
             <defs>
               <linearGradient id="fillAlpha" x1="0" y1="0" x2="0" y2="1">
                 <stop
-                  offset="5%"
+                  offset="0%"
                   stopColor="var(--color-alpha)"
-                  stopOpacity={1.0}
+                  stopOpacity={0.35}
                 />
                 <stop
-                  offset="95%"
+                  offset="100%"
                   stopColor="var(--color-alpha)"
-                  stopOpacity={0.1}
+                  stopOpacity={0.02}
                 />
               </linearGradient>
               <linearGradient id="fillTheta" x1="0" y1="0" x2="0" y2="1">
                 <stop
-                  offset="5%"
+                  offset="0%"
                   stopColor="var(--color-theta)"
-                  stopOpacity={0.8}
+                  stopOpacity={0.5}
                 />
                 <stop
-                  offset="95%"
+                  offset="100%"
                   stopColor="var(--color-theta)"
-                  stopOpacity={0.1}
+                  stopOpacity={0.02}
                 />
               </linearGradient>
             </defs>
@@ -277,6 +277,30 @@ export function ChartAreaInteractive() {
             />
           </AreaChart>
         </ChartContainer>
+        {/* Band legend summary */}
+        <div className="mt-4 flex items-center gap-6 px-1">
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: "var(--color-alpha)" }}
+            />
+            <span className="text-xs text-muted-foreground">
+              Alpha <span className="font-medium text-foreground">8–13 Hz</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: "var(--color-theta)" }}
+            />
+            <span className="text-xs text-muted-foreground">
+              Theta <span className="font-medium text-foreground">4–8 Hz</span>
+            </span>
+          </div>
+          <div className="ml-auto text-[10px] font-mono text-muted-foreground/50 tracking-wider uppercase">
+            μV² band power
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

@@ -84,67 +84,130 @@ const App = () => {
                     transition: { duration: 0.45, ease: EASE },
                   }}>
                   {/* Left column — branding */}
-                  <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-y-6 border-r border-border/30">
-                    <motion.img
-                      src={neuralNetwork}
-                      alt="Neural Network"
-                      className="w-56 h-56 dark:invert opacity-90 drop-shadow-2xl"
-                      initial={{ opacity: 0, y: 16 }}
+                  <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-y-7">
+                    {/* Logo with pulsing signal rings */}
+                    <motion.div
+                      className="relative flex items-center justify-center"
+                      initial={{ opacity: 0, scale: 0.88 }}
                       animate={{
                         opacity: 1,
-                        y: 0,
-                        transition: { delay: 0.15, duration: 0.7, ease: EASE },
-                      }}
-                    />
+                        scale: 1,
+                        transition: { delay: 0.12, duration: 0.8, ease: EASE },
+                      }}>
+                      {[180, 250, 320].map((size, i) => (
+                        <motion.div
+                          key={size}
+                          className="absolute rounded-full border border-foreground/[0.07]"
+                          style={{ width: size, height: size }}
+                          animate={{
+                            scale: [1, 1.05, 1],
+                            opacity: [0.5, 0.12, 0.5],
+                          }}
+                          transition={{
+                            duration: 3.8,
+                            ease: "easeInOut",
+                            repeat: Infinity,
+                            delay: i * 0.9,
+                          }}
+                        />
+                      ))}
+                      <img
+                        src={neuralNetwork}
+                        alt="Neural Network"
+                        className="relative z-10 w-48 h-48 dark:invert opacity-90 drop-shadow-2xl"
+                      />
+                    </motion.div>
+
                     <motion.div
-                      className="flex flex-col items-center gap-y-1"
+                      className="flex flex-col items-center gap-y-1.5"
                       initial={{ opacity: 0, y: 12 }}
                       animate={{
                         opacity: 1,
                         y: 0,
                         transition: { delay: 0.28, duration: 0.7, ease: EASE },
                       }}>
-                      <h1 className="text-6xl font-mono font-bold tracking-tight">
+                      <h1 className="text-5xl font-mono font-bold tracking-tight">
                         Cerebro
                       </h1>
-                      <p className="text-xs font-medium tracking-[0.3em] uppercase text-muted-foreground">
+                      <p className="text-[10px] font-medium tracking-[0.35em] uppercase text-muted-foreground">
                         Brain–Computer Interface
                       </p>
                     </motion.div>
+
+                    {/* Status badge */}
+                    <motion.div
+                      className="flex items-center gap-x-2 px-3.5 py-1 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        transition: { delay: 0.44, duration: 0.6, ease: EASE },
+                      }}>
+                      <motion.span
+                        className="w-1.5 h-1.5 rounded-full bg-foreground/70"
+                        animate={{ opacity: [1, 0.25, 1] }}
+                        transition={{
+                          duration: 2.2,
+                          repeat: Infinity,
+                          ease: "easeInOut",
+                        }}
+                      />
+                      <span className="text-[9px] font-semibold tracking-[0.25em] uppercase text-muted-foreground">
+                        System Ready
+                      </span>
+                    </motion.div>
                   </div>
 
+                  {/* Animated vertical separator */}
+                  <motion.div
+                    className="self-center h-3/5 w-px bg-border/40"
+                    initial={{ scaleY: 0, opacity: 0 }}
+                    animate={{
+                      scaleY: 1,
+                      opacity: 1,
+                      transition: { delay: 0.3, duration: 0.55, ease: EASE },
+                    }}
+                    style={{ originY: 0.5 }}
+                  />
+
                   {/* Right column — intro & CTA */}
-                  <div className="relative z-10 flex flex-1 flex-col items-start justify-center gap-y-8 px-16">
+                  <div className="relative z-10 flex flex-1 flex-col items-start justify-center gap-y-9 px-16">
                     <motion.div
-                      className="flex flex-col gap-y-3"
+                      className="flex flex-col gap-y-2"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{
                         opacity: 1,
                         x: 0,
                         transition: { delay: 0.2, duration: 0.7, ease: EASE },
                       }}>
-                      <span className="text-xs font-semibold tracking-[0.25em] uppercase text-muted-foreground">
+                      <span className="text-[10px] font-semibold tracking-[0.3em] uppercase text-muted-foreground/70">
                         Welcome
                       </span>
-                      <h2 className="text-3xl font-semibold leading-snug max-w-xs">
-                        Control with your mind.
+                      <h2 className="text-4xl font-semibold leading-tight max-w-xs">
+                        Control with
+                        <br />
+                        your mind.
                       </h2>
                     </motion.div>
 
-                    <motion.p
-                      className="text-sm leading-7 tracking-wide text-muted-foreground max-w-sm"
+                    <motion.div
+                      className="flex flex-col gap-y-4"
                       initial={{ opacity: 0, x: 20 }}
                       animate={{
                         opacity: 1,
                         x: 0,
                         transition: { delay: 0.32, duration: 0.7, ease: EASE },
                       }}>
-                      A frontend that loads a machine learning model responsible
-                      for classifying live brain data streamed from an EEG
-                      headset. The model processes real-time neural signals and
-                      maps them to meaningful outputs — enabling hands-free
-                      interaction driven entirely by thought.
-                    </motion.p>
+                      <div className="w-8 h-px bg-foreground/25" />
+                      <p className="text-sm leading-7 tracking-wide text-muted-foreground max-w-sm">
+                        A frontend that loads a machine learning model
+                        responsible for classifying live brain data streamed
+                        from an EEG headset. The model processes real-time
+                        neural signals and maps them to meaningful outputs —
+                        enabling hands-free interaction driven entirely by
+                        thought.
+                      </p>
+                    </motion.div>
 
                     <motion.div
                       initial={{ opacity: 0, x: 20 }}
@@ -169,7 +232,7 @@ const App = () => {
               {screen === "loading" && (
                 <motion.div
                   key="loading"
-                  className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-y-10"
+                  className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-y-12"
                   initial={{ opacity: 0, scale: 0.97 }}
                   animate={{
                     opacity: 1,
@@ -181,52 +244,105 @@ const App = () => {
                     scale: 0.97,
                     transition: { duration: 0.4, ease: EASE },
                   }}>
-                  {/* Brand mark */}
-                  <div className="flex flex-col items-center gap-y-2 mb-2">
-                    <img
-                      src={neuralNetwork}
-                      alt="Neural Network"
-                      className="w-16 h-16 dark:invert opacity-60"
-                    />
-                    <span className="text-sm font-mono font-semibold tracking-[0.25em] uppercase text-muted-foreground">
+                  {/* Brand mark with scanning rings */}
+                  <div className="flex flex-col items-center gap-y-4">
+                    <div className="relative flex items-center justify-center">
+                      <motion.div
+                        className="absolute rounded-full border border-dashed border-foreground/15"
+                        style={{ width: 108, height: 108 }}
+                        animate={{ rotate: 360 }}
+                        transition={{
+                          duration: 9,
+                          ease: "linear",
+                          repeat: Infinity,
+                        }}
+                      />
+                      <motion.div
+                        className="absolute rounded-full border border-foreground/[0.07]"
+                        style={{ width: 140, height: 140 }}
+                        animate={{ rotate: -360 }}
+                        transition={{
+                          duration: 14,
+                          ease: "linear",
+                          repeat: Infinity,
+                        }}
+                      />
+                      <img
+                        src={neuralNetwork}
+                        alt="Neural Network"
+                        className="relative z-10 w-14 h-14 dark:invert opacity-60"
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold tracking-[0.3em] uppercase text-muted-foreground/60">
                       Cerebro
                     </span>
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="flex flex-col gap-y-4 w-80">
-                    <Progress
-                      value={progress}
-                      className="h-0.75 w-full bg-border/40"
-                    />
-
-                    {/* Step message */}
-                    <div className="relative h-5 flex items-center">
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={stepIndex}
-                          className="absolute text-sm font-medium tracking-wide text-muted-foreground whitespace-nowrap"
-                          initial={{ opacity: 0, y: 6 }}
+                  {/* Boot log */}
+                  <div className="flex flex-col gap-y-2 w-72 font-mono">
+                    {LOADING_STEPS.map((step, i) => {
+                      if (i > stepIndex) return null;
+                      const isDone = i < stepIndex;
+                      const isCurrent = i === stepIndex;
+                      return (
+                        <motion.div
+                          key={i}
+                          className="flex items-center gap-x-2.5"
+                          initial={{ opacity: 0, x: -10 }}
                           animate={{
                             opacity: 1,
-                            y: 0,
-                            transition: { duration: 0.35, ease: EASE },
-                          }}
-                          exit={{
-                            opacity: 0,
-                            y: -6,
-                            transition: { duration: 0.25, ease: EASE },
+                            x: 0,
+                            transition: { duration: 0.3, ease: EASE },
                           }}>
-                          {LOADING_STEPS[stepIndex]}
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
+                          <span
+                            className={cn(
+                              "text-xs shrink-0 w-3",
+                              isDone
+                                ? "text-foreground/30"
+                                : "text-muted-foreground",
+                            )}>
+                            {isDone ? "✓" : "›"}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-xs tracking-wide",
+                              isDone
+                                ? "text-muted-foreground/35"
+                                : "text-muted-foreground",
+                            )}>
+                            {step}
+                          </span>
+                          {isCurrent && (
+                            <motion.span
+                              className="ml-0.5 inline-block w-1.25 h-3.25 bg-foreground/50 shrink-0"
+                              animate={{ opacity: [1, 0, 1] }}
+                              transition={{
+                                duration: 0.75,
+                                repeat: Infinity,
+                                ease: "linear",
+                              }}
+                            />
+                          )}
+                        </motion.div>
+                      );
+                    })}
                   </div>
 
-                  {/* Step counter */}
-                  <span className="text-xs tabular-nums text-muted-foreground/50 tracking-wider">
-                    {stepIndex + 1} / {LOADING_STEPS.length}
-                  </span>
+                  {/* Progress bar + percentage */}
+                  <div className="flex flex-col gap-y-3 w-72">
+                    <Progress
+                      value={progress}
+                      className="h-0.5 w-full bg-border/40"
+                    />
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-mono font-medium tracking-[0.25em] uppercase text-muted-foreground/40">
+                        Initializing
+                      </span>
+                      <span className="text-[9px] font-mono tabular-nums text-muted-foreground/40 tracking-wider">
+                        {progress}%
+                      </span>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
