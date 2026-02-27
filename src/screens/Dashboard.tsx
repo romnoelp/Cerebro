@@ -5,13 +5,13 @@ import { SectionCards } from "@/components/section-cards";
 const DashboardScreen = () => {
   return (
     <motion.div
-      className="flex flex-1 flex-col min-h-0 overflow-y-auto"
+      className="flex flex-1 flex-col min-h-0 overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
       <div className="@container/main flex flex-col gap-2">
-        <div className="flex flex-col gap-4 py-4 md:gap-4 md:py-4">
+        <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2">
           {/* Page header */}
           <div className="flex items-end justify-between px-4 lg:px-6">
             <div className="flex flex-col gap-0.5">

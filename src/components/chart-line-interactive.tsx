@@ -1,6 +1,7 @@
 import * as React from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
+import { type TgcBandData } from "@/types";
 
 import {
   Card,
@@ -15,68 +16,182 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 const WINDOW = 30;
 const TICK_MS = 400;
 
-type DataPoint = { second: number; alpha: number; theta: number };
+// All 8 ThinkGear bands — keys match ThinkGear Connector JSON exactly
+const BANDS = [
+  {
+    key: "delta",
+    label: "δ Delta",
+    range: "0.5–2.75 Hz",
+    color: "var(--chart-1)",
+    init: { lo: 45, hi: 70, drift: 0.49 },
+  },
+  {
+    key: "theta",
+    label: "θ Theta",
+    range: "3.5–6.75 Hz",
+    color: "var(--chart-2)",
+    init: { lo: 15, hi: 35, drift: 0.5 },
+  },
+  {
+    key: "lowAlpha",
+    label: "α Low",
+    range: "7.5–9.25 Hz",
+    color: "var(--chart-3)",
+    init: { lo: 10, hi: 28, drift: 0.48 },
+  },
+  {
+    key: "highAlpha",
+    label: "α High",
+    range: "10–11.75 Hz",
+    color: "var(--chart-4)",
+    init: { lo: 8, hi: 22, drift: 0.5 },
+  },
+  {
+    key: "lowBeta",
+    label: "β Low",
+    range: "13–16.75 Hz",
+    color: "var(--chart-5)",
+    init: { lo: 5, hi: 20, drift: 0.5 },
+  },
+  {
+    key: "highBeta",
+    label: "β High",
+    range: "18–29.75 Hz",
+    color: "hsl(280 65% 60%)",
+    init: { lo: 3, hi: 15, drift: 0.51 },
+  },
+  {
+    key: "lowGamma",
+    label: "γ Low",
+    range: "31–39.75 Hz",
+    color: "hsl(180 55% 50%)",
+    init: { lo: 2, hi: 9, drift: 0.51 },
+  },
+  {
+    key: "midGamma",
+    label: "γ Mid",
+    range: "41–49.75 Hz",
+    color: "hsl(40 80% 55%)",
+    init: { lo: 1, hi: 7, drift: 0.51 },
+  },
+] as const;
+
+type BandKey = (typeof BANDS)[number]["key"];
+type DataPoint = { second: number } & Record<BandKey, number>;
+
+const EMPTY_POINT: DataPoint = {
+  second: 0,
+  delta: 0,
+  theta: 0,
+  lowAlpha: 0,
+  highAlpha: 0,
+  lowBeta: 0,
+  highBeta: 0,
+  lowGamma: 0,
+  midGamma: 0,
+};
+
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}
 
 function generateSeed(): DataPoint[] {
   const data: DataPoint[] = [];
-  let a = 55,
-    t = 28;
+  const state = Object.fromEntries(
+    BANDS.map((b) => [b.key, (b.init.lo + b.init.hi) / 2]),
+  ) as Record<BandKey, number>;
   for (let i = 0; i < WINDOW + 1; i++) {
-    a = Math.max(10, Math.min(90, a + (Math.random() - 0.48) * 15));
-    t = Math.max(8, Math.min(50, t + (Math.random() - 0.52) * 10));
-    data.push({ second: i, alpha: Math.round(a), theta: Math.round(t) });
+    BANDS.forEach((b) => {
+      state[b.key] = clamp(
+        state[b.key] +
+          (Math.random() - b.init.drift) * ((b.init.hi - b.init.lo) * 0.15),
+        b.init.lo,
+        b.init.hi,
+      );
+    });
+    data.push({
+      second: i,
+      ...Object.fromEntries(
+        BANDS.map((b) => [b.key, Math.round(state[b.key])]),
+      ),
+    } as DataPoint);
   }
   return data;
 }
 
 const chartConfig = {
   bands: { label: "Band Power (μV²)" },
-  alpha: { label: "Alpha (8–13 Hz)", color: "var(--chart-1)" },
-  theta: { label: "Theta (4–8 Hz)", color: "var(--chart-2)" },
+  ...Object.fromEntries(
+    BANDS.map((b) => [
+      b.key,
+      { label: `${b.label} (${b.range})`, color: b.color },
+    ]),
+  ),
 } satisfies ChartConfig;
 
 export function ChartLineInteractive({
   isRunning = false,
   shouldReset = false,
   hasStarted = false,
+  liveData,
   className,
 }: {
   isRunning?: boolean;
   shouldReset?: boolean;
   hasStarted?: boolean;
+  /** Live band power packet from the headset. When provided the mock ticker
+   *  is suppressed and real data drives the chart instead. */
+  liveData?: TgcBandData;
   className?: string;
 }) {
-  const [activeChart, setActiveChart] = React.useState<"alpha" | "theta">(
-    "alpha",
+  // Which bands are toggled visible — all on by default
+  const [visibleBands, setVisibleBands] = React.useState<Set<BandKey>>(
+    () => new Set(BANDS.map((b) => b.key)),
   );
+
   const [displayData, setDisplayData] = React.useState<DataPoint[]>(() => [
-    { second: 0, alpha: 0, theta: 0 },
+    { ...EMPTY_POINT },
   ]);
   const counterRef = React.useRef(0);
+  // Running state per band so each drifts continuously between ticks
+  const stateRef = React.useRef<Record<BandKey, number>>(
+    Object.fromEntries(
+      BANDS.map((b) => [b.key, (b.init.lo + b.init.hi) / 2]),
+    ) as Record<BandKey, number>,
+  );
+
+  const toggleBand = (key: BandKey) => {
+    setVisibleBands((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size > 1) next.delete(key); // always keep at least one visible
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   // Reset chart data when shouldReset is true
   React.useEffect(() => {
     if (shouldReset) {
       // Reset to empty state when session is cleared
       if (!hasStarted) {
-        setDisplayData([{ second: 0, alpha: 0, theta: 0 }]);
+        setDisplayData([{ ...EMPTY_POINT }]);
         counterRef.current = 0;
       } else {
         // Reset with new seed data when starting fresh session
         const newData = generateSeed();
         setDisplayData(newData);
         counterRef.current = WINDOW + 1;
+        const last = newData[newData.length - 1];
+        BANDS.forEach((b) => {
+          stateRef.current[b.key] = last[b.key];
+        });
       }
     }
   }, [shouldReset, hasStarted]);
@@ -87,45 +202,69 @@ export function ChartLineInteractive({
       const newData = generateSeed();
       setDisplayData(newData);
       counterRef.current = WINDOW + 1;
+      const last = newData[newData.length - 1];
+      BANDS.forEach((b) => {
+        stateRef.current[b.key] = last[b.key];
+      });
     }
   }, [hasStarted]);
 
   React.useEffect(() => {
-    if (!isRunning) {
+    // Mock ticker — only runs when no live headset data is available.
+    if (!isRunning || liveData !== undefined) {
       return;
     }
     const id = setInterval(() => {
       counterRef.current += 1;
       const tick = counterRef.current;
       setDisplayData((prev) => {
-        const last = prev[prev.length - 1];
-        const na = Math.max(
-          10,
-          Math.min(90, last.alpha + (Math.random() - 0.48) * 15),
-        );
-        const nt = Math.max(
-          8,
-          Math.min(50, last.theta + (Math.random() - 0.52) * 10),
-        );
-        return [
-          ...prev.slice(1),
-          { second: tick, alpha: Math.round(na), theta: Math.round(nt) },
-        ];
+        BANDS.forEach((b) => {
+          stateRef.current[b.key] = clamp(
+            stateRef.current[b.key] +
+              (Math.random() - b.init.drift) * ((b.init.hi - b.init.lo) * 0.15),
+            b.init.lo,
+            b.init.hi,
+          );
+        });
+        const newPoint = {
+          second: tick,
+          ...Object.fromEntries(
+            BANDS.map((b) => [b.key, Math.round(stateRef.current[b.key])]),
+          ),
+        } as DataPoint;
+        return [...prev.slice(1), newPoint];
       });
     }, TICK_MS);
     return () => {
       clearInterval(id);
     };
-  }, [isRunning]);
+  }, [isRunning, liveData]);
 
-  // Focus index: rolling avg of alpha/theta ratio over last 5 points
-  // Threshold mirrors the notebook's sigmoid >= 0.5 decision boundary:
+  // Real-data push — fires whenever a new TGC packet arrives.
+  React.useEffect(() => {
+    if (!isRunning || liveData === undefined) return;
+    counterRef.current += 1;
+    const tick = counterRef.current;
+    // Update stateRef so mock ticker continues smoothly if headset disconnects.
+    BANDS.forEach((b) => {
+      stateRef.current[b.key] =
+        (liveData as Record<string, number>)[b.key] ?? stateRef.current[b.key];
+    });
+    setDisplayData((prev) => [
+      ...prev.slice(1),
+      { second: tick, ...(liveData as Record<BandKey, number>) } as DataPoint,
+    ]);
+  }, [liveData, isRunning]);
+
+  // Focus = beta/theta ratio — mirrors notebook feature[8]: combined_beta / theta
   // ratio >= 0.5 → Focused (1), ratio < 0.5 → Unfocused (0)
   const focusRatio = React.useMemo(() => {
     const slice = displayData.slice(-5);
     const avg =
-      slice.reduce((s, d) => s + d.alpha / Math.max(d.theta, 1), 0) /
-      slice.length;
+      slice.reduce((s, d) => {
+        const beta = (d.lowBeta + d.highBeta) / 2;
+        return s + beta / Math.max(d.theta, 1);
+      }, 0) / slice.length;
     return avg;
   }, [displayData]);
 
@@ -141,38 +280,49 @@ export function ChartLineInteractive({
   return (
     <Card
       className={cn(
-        "flex flex-col border border-border/40 bg-background/20 backdrop-blur-sm",
+        "flex flex-col border border-border/50 bg-background/10 backdrop-blur-md",
         className,
       )}>
-      <CardHeader className="flex items-center gap-2 space-y-0 border-b py-5 sm:flex-row">
+      <CardHeader className="flex items-center gap-2 space-y-0 border-b py-3 sm:flex-row">
         <div className="grid flex-1 gap-1 px-0.5">
           <CardTitle>Live EEG Signal</CardTitle>
           <CardDescription>
             Band power (μV²) — rolling {WINDOW}s window
           </CardDescription>
         </div>
-        <Select
-          value={activeChart}
-          onValueChange={(value) => setActiveChart(value as "alpha" | "theta")}>
-          <SelectTrigger
-            className="w-40 rounded-lg sm:ml-auto"
-            aria-label="Select band">
-            <SelectValue placeholder="Select band" />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl">
-            <SelectItem value="alpha" className="rounded-lg">
-              Alpha (8–13 Hz)
-            </SelectItem>
-            <SelectItem value="theta" className="rounded-lg">
-              Theta (4–8 Hz)
-            </SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Band toggle pills */}
+        <div className="flex flex-wrap gap-1 sm:ml-auto">
+          {BANDS.map((b) => {
+            const active = visibleBands.has(b.key);
+            return (
+              <button
+                key={b.key}
+                onClick={() => toggleBand(b.key)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-opacity border",
+                  active ? "opacity-100" : "opacity-30",
+                )}
+                style={{
+                  borderColor: b.color,
+                  color: b.color,
+                  backgroundColor: active
+                    ? `color-mix(in srgb, ${b.color} 12%, transparent)`
+                    : "transparent",
+                }}>
+                <span
+                  className="size-1.5 rounded-full shrink-0"
+                  style={{ backgroundColor: b.color }}
+                />
+                {b.label}
+              </button>
+            );
+          })}
+        </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-62.5 w-full">
+          className="aspect-auto h-56 w-full">
           <LineChart
             data={displayData}
             margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
@@ -189,26 +339,32 @@ export function ChartLineInteractive({
               cursor={false}
               content={
                 <ChartTooltipContent
-                  className="w-40"
+                  className="w-48"
                   nameKey="bands"
                   labelFormatter={(v) => `${v}s`}
                   indicator="dot"
                 />
               }
             />
-            <Line
-              dataKey={activeChart}
-              type="monotone"
-              stroke={`var(--color-${activeChart})`}
-              strokeWidth={2}
-              dot={false}
-              isAnimationActive={false}
-            />
+            {BANDS.map((b) =>
+              visibleBands.has(b.key) ? (
+                <Line
+                  key={b.key}
+                  dataKey={b.key}
+                  name={`${b.label} (${b.range})`}
+                  type="monotone"
+                  stroke={b.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              ) : null,
+            )}
           </LineChart>
         </ChartContainer>
       </CardContent>
       {/* Brain State indicator footer */}
-      <div className="border-t px-5 py-1 flex items-center gap-3 shrink-0 bg-muted/20">
+      <div className="border-t px-5 py-0.5 flex items-center gap-3 shrink-0 bg-muted/20">
         <div className="flex items-center gap-1.5 shrink-0">
           <span
             className="size-1.5 rounded-full shrink-0 transition-colors duration-500"

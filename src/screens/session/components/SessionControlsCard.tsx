@@ -22,7 +22,7 @@ export const SessionControlsCard = ({
   onExport,
 }: SessionControlsCardProps) => {
   return (
-    <Card className="border border-border/40 bg-background/20 backdrop-blur-sm gap-2 py-3.5">
+    <Card className="border border-border/50 bg-background/10 backdrop-blur-md gap-2 py-3.5">
       <CardHeader className="px-4 pb-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">

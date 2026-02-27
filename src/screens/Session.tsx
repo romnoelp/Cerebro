@@ -10,16 +10,17 @@ import { formatElapsed, formatSamples } from "./session/utils";
 import { useSessionTimer } from "./session/hooks/useSessionTimer";
 import { useModelLoader } from "./session/hooks/useModelLoader";
 import { useCalibration } from "./session/hooks/useCalibration";
+import { useTgcConnection } from "./session/hooks/useTgcConnection";
 import { StatCard } from "./session/components/StatCard";
 import { ModelManagementCard } from "./session/components/ModelManagementCard";
 import { SessionControlsCard } from "./session/components/SessionControlsCard";
-import { PatientNameDialog } from "./session/components/PatientNameDialog";
+import { SubjectNameDialog } from "./session/components/SubjectNameDialog";
 import { CalibrationDialog } from "./session/components/CalibrationDialog";
 
 const SessionScreen = () => {
   const [isScanning, setIsScanning] = React.useState(false);
   const [hasStarted, setHasStarted] = React.useState(false);
-  const [patientName, setPatientName] = React.useState("");
+  const [subjectName, setSubjectName] = React.useState("");
   const [showNameDialog, setShowNameDialog] = React.useState(false);
   const [showCalibrationDialog, setShowCalibrationDialog] =
     React.useState(false);
@@ -36,6 +37,7 @@ const SessionScreen = () => {
     showStartButton,
     reset: resetCalibration,
   } = useCalibration(showCalibrationDialog);
+  const { liveData } = useTgcConnection(isScanning);
 
   const handleStartScanning = () => {
     // If already started (paused), just resume
@@ -43,7 +45,7 @@ const SessionScreen = () => {
       setIsScanning(true);
       sileo.success({
         title: "Scanning resumed",
-        description: `Live EEG acquisition for ${patientName} resumed.`,
+        description: `Live EEG acquisition for ${subjectName} resumed.`,
       });
     } else {
       // Fresh start - show name dialog
@@ -52,10 +54,10 @@ const SessionScreen = () => {
   };
 
   const handleNameSubmit = () => {
-    if (!patientName.trim()) {
+    if (!subjectName.trim()) {
       sileo.error({
-        title: "Patient name required",
-        description: "Please enter a patient name to continue.",
+        title: "Subject name required",
+        description: "Please enter a subject name to continue.",
       });
       return;
     }
@@ -66,7 +68,7 @@ const SessionScreen = () => {
   const handleCancelSession = () => {
     setShowNameDialog(false);
     setShowCalibrationDialog(false);
-    setPatientName("");
+    setSubjectName("");
     resetCalibration();
     sileo.info({
       title: "Session cancelled",
@@ -81,7 +83,7 @@ const SessionScreen = () => {
     setHasStarted(true);
     sileo.success({
       title: "Scanning started",
-      description: `Live EEG acquisition for ${patientName} is active.`,
+      description: `Live EEG acquisition for ${subjectName} is active.`,
     });
   };
 
@@ -105,8 +107,8 @@ const SessionScreen = () => {
       const now = new Date();
       const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
       const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, "-"); // HH-MM-SS
-      const filename = patientName.trim()
-        ? `${patientName.trim().replace(/\s+/g, "_")}_${dateStr}_${timeStr}.csv`
+      const filename = subjectName.trim()
+        ? `${subjectName.trim().replace(/\s+/g, "_")}_${dateStr}_${timeStr}.csv`
         : `session_${dateStr}_${timeStr}.csv`;
 
       const path = await save({
@@ -117,7 +119,7 @@ const SessionScreen = () => {
 
       // Clear all data after successful export
       resetTimer();
-      setPatientName("");
+      setSubjectName("");
       setHasStarted(false);
       setIsScanning(false);
       setShouldResetChart(true);
@@ -136,13 +138,13 @@ const SessionScreen = () => {
 
   return (
     <motion.div
-      className="flex flex-1 flex-col min-h-0 overflow-y-auto"
+      className="flex flex-1 flex-col min-h-0 overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
-      <div className="@container/main flex flex-col gap-4">
-        <div className="flex flex-col gap-2 py-3 pb-6">
+      <div className="@container/main flex flex-col gap-2">
+        <div className="flex flex-col gap-2 py-2 pb-2">
           {/* Page header */}
           <div className="flex items-end justify-between px-4 lg:px-6">
             <div className="flex flex-col gap-0.5">
@@ -211,6 +213,7 @@ const SessionScreen = () => {
               isRunning={isScanning}
               shouldReset={shouldResetChart}
               hasStarted={hasStarted}
+              liveData={liveData}
               className="h-full"
             />
 
@@ -235,14 +238,14 @@ const SessionScreen = () => {
         </div>
       </div>
 
-      {/* Patient Name Dialog */}
-      <PatientNameDialog
+      {/* Subject Name Dialog */}
+      <SubjectNameDialog
         open={showNameDialog}
-        patientName={patientName}
+        subjectName={subjectName}
         onOpenChange={(open) => {
           if (!open) handleCancelSession();
         }}
-        onPatientNameChange={setPatientName}
+        onSubjectNameChange={setSubjectName}
         onSubmit={handleNameSubmit}
         onCancel={handleCancelSession}
       />

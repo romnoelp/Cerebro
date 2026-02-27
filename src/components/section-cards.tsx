@@ -12,8 +12,8 @@ import {
 
 export function SectionCards() {
   return (
-    <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-      <Card className="@container/card border border-border/40 bg-background/20 backdrop-blur-sm py-4 gap-4">
+    <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+      <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md py-3 gap-3">
         <CardHeader>
           <CardDescription>Alpha Power</CardDescription>
           <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
@@ -37,7 +37,7 @@ export function SectionCards() {
           </div>
         </CardFooter>
       </Card>
-      <Card className="@container/card border border-border/40 bg-background/20 backdrop-blur-sm py-4 gap-4">
+      <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md py-3 gap-3">
         <CardHeader>
           <CardDescription>Signal Quality</CardDescription>
           <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
@@ -61,7 +61,7 @@ export function SectionCards() {
           </div>
         </CardFooter>
       </Card>
-      <Card className="@container/card border border-border/40 bg-background/20 backdrop-blur-sm py-4 gap-4">
+      <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md py-3 gap-3">
         <CardHeader>
           <CardDescription>Total Sessions</CardDescription>
           <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">
@@ -85,7 +85,7 @@ export function SectionCards() {
           </div>
         </CardFooter>
       </Card>
-      <Card className="@container/card border border-border/40 bg-background/20 backdrop-blur-sm py-4 gap-4">
+      <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md py-3 gap-3">
         <CardHeader>
           <CardDescription>Focus Index</CardDescription>
           <CardTitle className="text-xl font-semibold tabular-nums @[250px]/card:text-2xl">

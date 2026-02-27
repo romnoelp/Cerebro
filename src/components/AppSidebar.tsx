@@ -59,7 +59,7 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
   }));
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

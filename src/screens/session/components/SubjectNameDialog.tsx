@@ -9,40 +9,40 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 
-interface PatientNameDialogProps {
+interface SubjectNameDialogProps {
   open: boolean;
-  patientName: string;
+  subjectName: string;
   onOpenChange: (open: boolean) => void;
-  onPatientNameChange: (name: string) => void;
+  onSubjectNameChange: (name: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }
 
-export const PatientNameDialog = ({
+export const SubjectNameDialog = ({
   open,
-  patientName,
+  subjectName,
   onOpenChange,
-  onPatientNameChange,
+  onSubjectNameChange,
   onSubmit,
   onCancel,
-}: PatientNameDialogProps) => {
+}: SubjectNameDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border border-border/40 bg-background/95 backdrop-blur-sm">
         <DialogHeader>
-          <DialogTitle>Patient Information</DialogTitle>
+          <DialogTitle>Subject Information</DialogTitle>
           <DialogDescription>
             Enter the participant's name to begin the session.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="patient-name">Patient Name</Label>
+            <Label htmlFor="subject-name">Subject Name</Label>
             <Input
-              id="patient-name"
-              placeholder="Enter patient name..."
-              value={patientName}
-              onChange={(e) => onPatientNameChange(e.target.value)}
+              id="subject-name"
+              placeholder="Enter subject name..."
+              value={subjectName}
+              onChange={(e) => onSubjectNameChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   onSubmit();

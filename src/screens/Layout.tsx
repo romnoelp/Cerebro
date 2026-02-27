@@ -40,7 +40,8 @@ const Layout = () => {
             "--sidebar-width": "calc(var(--spacing) * 56)",
             "--header-height": "calc(var(--spacing) * 12)",
           } as React.CSSProperties
-        }>
+        }
+        className="h-screen overflow-hidden">
         {/* Sidebar — state persists across file changes */}
         <AppSidebar selected={selected} onSelect={setSelected} />
 
