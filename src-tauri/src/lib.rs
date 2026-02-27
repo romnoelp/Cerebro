@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::TcpStream;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -7,7 +7,7 @@ use std::sync::{
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 // TGC listens on localhost:13854; appKey must be exactly 40 hex chars.
 const TGC_ADDR: &str = "127.0.0.1:13854";
@@ -78,83 +78,74 @@ impl Default for TgcState {
 
 type TgcStateGuard = Mutex<TgcState>;
 
-fn run_tgc_reader(app: AppHandle, stop_flag: Arc<AtomicBool>) {
-    // Retry connection every 2s until successful or stopped.
-    let stream = loop {
+// Retries TCP connect every 2s until successful or stop_flag is set.
+fn try_connect(app: &AppHandle, stop_flag: &Arc<AtomicBool>) -> Option<TcpStream> {
+    loop {
         if stop_flag.load(Ordering::Relaxed) {
-            return;
+            return None;
         }
-        match TcpStream::connect(TGC_ADDR) {
-            Ok(s) => break s,
-            Err(_) => {
-                let _ = app.emit("tgc-status", "disconnected");
-                std::thread::sleep(Duration::from_secs(2));
-            }
+        if let Ok(s) = TcpStream::connect(TGC_ADDR) {
+            return Some(s);
         }
+        let _ = app.emit("tgc-status", "disconnected");
+        std::thread::sleep(Duration::from_secs(2));
+    }
+}
+
+// Parses a TGC JSON line into an EegPayload. Returns None for non-eegPower packets.
+fn parse_packet(line: &str) -> Option<EegPayload> {
+    if line.is_empty() {
+        return None;
+    }
+    let packet: TgcPacket = serde_json::from_str(line).ok()?;
+    let poor_signal_level = packet.poor_signal_level.unwrap_or(200);
+    let sense = packet.e_sense.unwrap_or(RawESense {
+        attention: None,
+        meditation: None,
+    });
+    let eeg = packet.eeg_power?;
+    Some(EegPayload {
+        delta: eeg.delta,
+        theta: eeg.theta,
+        low_alpha: eeg.low_alpha,
+        high_alpha: eeg.high_alpha,
+        low_beta: eeg.low_beta,
+        high_beta: eeg.high_beta,
+        low_gamma: eeg.low_gamma,
+        mid_gamma: eeg.high_gamma,
+        attention: sense.attention.unwrap_or(0),
+        meditation: sense.meditation.unwrap_or(0),
+        poor_signal_level,
+    })
+}
+
+fn run_tgc_reader(app: AppHandle, stop_flag: Arc<AtomicBool>) {
+    let Some(stream) = try_connect(&app, &stop_flag) else {
+        return;
     };
 
     // 500ms read timeout so the loop can check stop_flag while idle.
     let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-
-    {
-        let mut writer = stream.try_clone().expect("clone stream for write");
-        let _ = writeln!(writer, "{}", TGC_AUTH);
-    }
-
+    let mut writer = stream.try_clone().expect("clone stream for write");
+    let _ = writeln!(writer, "{}", TGC_AUTH);
     let _ = app.emit("tgc-status", "connected");
 
-    let reader = BufReader::new(stream);
-
-    for line in reader.lines() {
+    for result in BufReader::new(stream).lines() {
         if stop_flag.load(Ordering::Relaxed) {
             break;
         }
-
-        let line = match line {
+        let line = match result {
             Ok(l) => l,
-            Err(e) => {
-                use std::io::ErrorKind;
-                // Timeouts are expected — re-check stop_flag and continue.
-                if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut {
-                    continue;
-                }
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => continue,
+            Err(_) => {
                 let _ = app.emit("tgc-status", "disconnected");
                 break;
             }
         };
-
-        if line.is_empty() {
+        let Some(payload) = parse_packet(&line) else {
             continue;
-        }
-
-        let packet: TgcPacket = match serde_json::from_str(&line) {
-            Ok(p) => p,
-            Err(_) => continue,
         };
-
-        // Only emit on full eegPower packets; skip raw/blink/heartbeat types.
-        if let Some(eeg) = packet.eeg_power {
-            let sense = packet.e_sense.unwrap_or(RawESense {
-                attention: None,
-                meditation: None,
-            });
-
-            let payload = EegPayload {
-                delta: eeg.delta,
-                theta: eeg.theta,
-                low_alpha: eeg.low_alpha,
-                high_alpha: eeg.high_alpha,
-                low_beta: eeg.low_beta,
-                high_beta: eeg.high_beta,
-                low_gamma: eeg.low_gamma,
-                mid_gamma: eeg.high_gamma,
-                attention: sense.attention.unwrap_or(0),
-                meditation: sense.meditation.unwrap_or(0),
-                poor_signal_level: packet.poor_signal_level.unwrap_or(200),
-            };
-
-            let _ = app.emit("tgc-data", payload);
-        }
+        let _ = app.emit("tgc-data", payload);
     }
 }
 

@@ -32,12 +32,15 @@ const SessionScreen = () => {
     reset: resetTimer,
   } = useSessionTimer(isScanning);
   const { loadedModels, allLoaded, handleLoadModel } = useModelLoader();
+  const { liveData, isConnected, poorSignalLevel } = useTgcConnection(
+    isScanning || showCalibrationDialog,
+  );
   const {
     calibrationStep,
     showStartButton,
+    signalFailed,
     reset: resetCalibration,
-  } = useCalibration(showCalibrationDialog);
-  const { liveData } = useTgcConnection(isScanning);
+  } = useCalibration(showCalibrationDialog, isConnected, poorSignalLevel);
 
   const handleStartScanning = () => {
     // If already started (paused), just resume
@@ -74,6 +77,10 @@ const SessionScreen = () => {
       title: "Session cancelled",
       description: "The session setup has been cancelled.",
     });
+  };
+
+  const handleRetryCalibration = () => {
+    resetCalibration();
   };
 
   const handleCalibrationComplete = () => {
@@ -153,21 +160,46 @@ const SessionScreen = () => {
                 Live EEG acquisition &amp; model inference
               </p>
             </div>
-            <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
-              <span className="relative flex h-1.5 w-1.5">
-                {isScanning && (
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground/50 opacity-75" />
-                )}
-                <span
-                  className={cn(
-                    "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors",
-                    isScanning ? "bg-foreground/70" : "bg-foreground/40",
+            <div className="flex items-center gap-2">
+              {/* Headset status */}
+              {isScanning && (
+                <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
+                  <span
+                    className={cn(
+                      "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors",
+                      isConnected
+                        ? poorSignalLevel < 50
+                          ? "bg-emerald-500"
+                          : "bg-amber-500"
+                        : "bg-foreground/30",
+                    )}
+                  />
+                  <span className="text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground">
+                    {isConnected
+                      ? poorSignalLevel < 50
+                        ? "Signal OK"
+                        : "Poor Signal"
+                      : "No Headset"}
+                  </span>
+                </div>
+              )}
+              {/* Scanning status */}
+              <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
+                <span className="relative flex h-1.5 w-1.5">
+                  {isScanning && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground/50 opacity-75" />
                   )}
-                />
-              </span>
-              <span className="text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground">
-                {isScanning ? "Scanning" : "Idle"}
-              </span>
+                  <span
+                    className={cn(
+                      "relative inline-flex h-1.5 w-1.5 rounded-full transition-colors",
+                      isScanning ? "bg-foreground/70" : "bg-foreground/40",
+                    )}
+                  />
+                </span>
+                <span className="text-[10px] font-medium tracking-[0.2em] uppercase text-muted-foreground">
+                  {isScanning ? "Scanning" : "Idle"}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -255,9 +287,16 @@ const SessionScreen = () => {
         open={showCalibrationDialog}
         calibrationStep={calibrationStep}
         showStartButton={showStartButton}
+        signalFailed={signalFailed}
+        signalMessage={
+          !isConnected
+            ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
+            : "Headset connected but signal quality is poor. Adjust the headband and try again."
+        }
         onOpenChange={(open) => {
           if (!open) handleCancelSession();
         }}
+        onRetry={handleRetryCalibration}
         onComplete={handleCalibrationComplete}
         onCancel={handleCancelSession}
       />

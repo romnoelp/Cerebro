@@ -6,9 +6,9 @@ An undergraduate thesis project exploring EEG-based focus classification in acad
 
 ## Overview
 
-Cerebro is the software component of a thesis investigating whether EEG signals can reliably classify student focus states during various academic tasks. It connects to a NeuroSky-style headset (512 Hz sampling rate), runs on-device deep learning models to infer focus state in real time, and exports annotated session data per subject.
+Cerebro is the software component of a thesis investigating whether EEG signals can reliably classify student focus states during various academic tasks. It connects to a NeuroSky MindWave Mobile 2 headset via the ThinkGear Connector (TGC), streams all 8 TGAM band powers in real time through a Rust TCP bridge, and exports annotated session data per subject.
 
-The application currently simulates the EEG signal stream — the UI, session flow, model loading, and export pipeline are fully implemented and ready for real hardware integration.
+The headset connection pipeline is fully implemented. The UI, session flow, model loading, and export pipeline are complete and ready. On-device model inference (TCN+DDQN) is the remaining integration step.
 
 ---
 
@@ -24,6 +24,72 @@ The application currently simulates the EEG signal stream — the UI, session fl
 | Notifications   | Sileo                        |
 | UI primitives   | Radix UI, shadcn/ui          |
 | File dialogs    | `@tauri-apps/plugin-dialog`  |
+| EEG bridge      | ThinkGear Connector (TCP)    |
+
+---
+
+## Headset Connection
+
+Cerebro communicates with the NeuroSky MindWave Mobile 2 through the **ThinkGear Connector (TGC)** — a local TCP server NeuroSky provides that abstracts the Bluetooth COM port.
+
+### How it works
+
+```
+MindWave Mobile 2  →  Bluetooth  →  ThinkGear Connector (localhost:13854)
+                                           ↓  TCP / newline-delimited JSON
+                                    Rust TGC bridge (lib.rs)
+                                           ↓  Tauri IPC event  (tgc-data)
+                                    useTgcConnection hook
+                                           ↓
+                                    Live EEG chart (8 bands)
+```
+
+### Rust bridge (`src-tauri/src/lib.rs`)
+
+Exposes two Tauri commands:
+
+| Command     | Effect                                                         |
+| ----------- | -------------------------------------------------------------- |
+| `start_tgc` | Spawns a background thread that connects to TGC and reads data |
+| `stop_tgc`  | Sets the thread stop flag; thread exits within 500 ms          |
+
+The thread:
+
+1. Opens a TCP connection to `127.0.0.1:13854`, retrying every 2 s on failure.
+2. Sends the authorization JSON (`appName` / `appKey`).
+3. Reads newline-delimited JSON packets, filtering for packets that contain the `eegPower` field.
+4. Emits a `tgc-data` Tauri event with the parsed `EegPayload` each time a complete packet arrives.
+5. Emits `tgc-status` (`connected` / `disconnected`) on connection state changes.
+
+### Signal quality gating
+
+TGC includes a `poorSignalLevel` field in each packet (0 = clean contact, 200 = no contact). The `useTgcConnection` hook discards any packet where `poorSignalLevel ≥ 50`, preventing noisy artifacts from reaching the chart or the inference pipeline.
+
+### EEG band powers
+
+The TGAM chip inside the headset pre-computes 8 band powers at approximately 1 Hz:
+
+| Band       | Frequency range | Key         |
+| ---------- | --------------- | ----------- |
+| Delta      | 0.5 – 2.75 Hz   | `delta`     |
+| Theta      | 3.5 – 6.75 Hz   | `theta`     |
+| Low Alpha  | 7.5 – 9.25 Hz   | `lowAlpha`  |
+| High Alpha | 10 – 11.75 Hz   | `highAlpha` |
+| Low Beta   | 13 – 16.75 Hz   | `lowBeta`   |
+| High Beta  | 18 – 29.75 Hz   | `highBeta`  |
+| Low Gamma  | 31 – 39.75 Hz   | `lowGamma`  |
+| Mid Gamma  | 41 – 49.75 Hz   | `midGamma`  |
+
+> **Note:** TGC refers to the last band as `highGamma`. It is remapped to `midGamma` in the Rust `EegPayload` struct to match the frontend chart key naming.
+
+Raw band powers are absolute integer values. The hook normalizes them to **relative percentages** (each band ÷ sum of all bands × 100) before updating the chart, matching the preprocessing used in the TCN+DDQN training notebook.
+
+### Setup (per session)
+
+1. Power on the headset and pair it via Windows Bluetooth settings.
+2. Launch `ThinkGear Connector.exe` — it auto-detects the COM port and starts the TCP server.
+3. Launch Cerebro (`pnpm tauri dev`).
+4. Navigate to the Session screen and click **Start** — the Rust bridge connects automatically.
 
 ---
 
@@ -53,22 +119,28 @@ src/
 │       ├── constants.ts        # Model definitions, calibration steps, animation config
 │       ├── utils.ts            # formatElapsed, formatSamples helpers
 │       ├── hooks/
-│       │   ├── useSessionTimer.tsx    # Elapsed time + sample counter (512 Hz)
-│       │   ├── useModelLoader.tsx     # File-picker model loading & validation
-│       │   └── useCalibration.tsx     # Step-through calibration dialog state
+│       │   ├── useSessionTimer.tsx      # Elapsed time + sample counter (512 Hz)
+│       │   ├── useModelLoader.tsx       # File-picker model loading & validation
+│       │   ├── useCalibration.tsx       # Step-through calibration dialog state
+│       │   └── useTgcConnection.ts      # TGC start/stop, tgc-data listener, normalization
 │       └── components/
-│           ├── StatCard.tsx           # Stat strip card (elapsed, samples, models)
-│           ├── ModelManagementCard.tsx # Model load UI with status indicators
-│           ├── SessionControlsCard.tsx # Start / Stop / Export buttons
-│           ├── PatientNameDialog.tsx   # Patient name input dialog
-│           └── CalibrationDialog.tsx   # Animated 4-step calibration flow
+│           ├── StatCard.tsx             # Stat strip card (elapsed, samples, models)
+│           ├── ModelManagementCard.tsx  # Model load UI with status indicators
+│           ├── SessionControlsCard.tsx  # Start / Stop / Export buttons
+│           ├── SubjectNameDialog.tsx    # Subject name input dialog
+│           └── CalibrationDialog.tsx    # Animated 4-step calibration flow
 ├── components/
-│   ├── AppSidebar.tsx          # Animated sidebar with nav + user footer
-│   ├── chart-line-interactive.tsx  # Live EEG chart + focus index indicator
+│   ├── AppSidebar.tsx              # Collapsible sidebar (icon mode) with nav + user footer
+│   ├── chart-line-interactive.tsx  # Live 8-band EEG chart + focus index + band toggle pills
 │   ├── chart-area-interactive.tsx  # Historical area chart (Dashboard)
-│   └── section-cards.tsx       # Dashboard metric cards
+│   └── section-cards.tsx           # Dashboard metric cards
+├── types/
+│   └── index.ts                # TgcBandData, TgcStatus, and shared types
 └── lib/
     └── file-contents.ts        # Screen registry and live/code view routing
+
+src-tauri/src/
+└── lib.rs                      # Rust TGC bridge: start_tgc / stop_tgc Tauri commands
 ```
 
 ---
@@ -87,15 +159,21 @@ src/
        ├─ "Checking signal integrity..."
        ├─ "Baseline calibration in progress..."
        └─ "System ready for acquisition" → Start button appears
+   └─ On completion: Rust start_tgc command fires → TCP connection to TGC opens
 
 3. Live Acquisition
-   └─ EEG chart streams alpha (8–13 Hz) and theta (4–8 Hz) band power
-   └─ Rolling 30-second window, ticks every 400ms
-   └─ Focus Index computed as alpha/theta ratio over last 5 data points
-       ├─ ratio ≥ 0.5 → FOCUSED  (matches notebook sigmoid decision boundary)
+   └─ Rust bridge receives JSON packets from TGC (~1 Hz)
+   └─ Packets with poorSignalLevel ≥ 50 are discarded (poor electrode contact)
+   └─ Valid packets are normalized to relative band power percentages
+   └─ Frontend receives tgc-data events via Tauri IPC
+   └─ All 8 TGAM band powers plotted on the live chart (toggle per band)
+   └─ Rolling 30-second window; mock data runs when headset is not connected
+   └─ Focus Index computed as (lowBeta + highBeta) / 2 ÷ theta over last 5 points
+       ├─ ratio ≥ 0.5 → FOCUSED  (mirrors notebook feature engineering)
        └─ ratio < 0.5 → UNFOCUSED
    └─ Brain State bar and label update in real time
    └─ Session can be paused (Stop) and resumed (Start) without resetting
+       └─ stop_tgc fires on pause; start_tgc fires on resume
 
 4. Export
    └─ Save dialog opens → generates filename: SubjectName_YYYY-MM-DD_HH-MM-SS.csv
@@ -121,11 +199,13 @@ The Dashboard screen displays aggregate metrics across sessions:
 
 ## UI Features
 
-- **Animated sidebar** — collapsible, powered by Radix UI + Motion
+- **Animated sidebar** — collapsible to icon mode with tooltips, powered by Radix UI + Motion
 - **Stars background** — adapts color to light/dark theme
 - **Dark/light theme** — via `next-themes`
-- **Animated dialogs** — patient name + calibration use `animate-ui` primitives
+- **Animated dialogs** — subject name + calibration use `animate-ui` primitives
 - **Stat strip** — live elapsed time, sample count, and model load status
+- **8-band live chart** — per-band toggle pills, glassmorphic cards, muted oklch color palette
+- **Brain State indicator** — real-time focus ratio with animated progress bar
 
 ---
 
@@ -155,8 +235,9 @@ pnpm run tauri build
 
 ## Known Limitations
 
-- EEG signal is still **simulated** — real NeuroSky hardware integration is not yet implemented
-- Dashboard metrics are **static** — no session history is persisted between app launches
-- Model inference runs at the **UI layer only** — the `.pt` / `.pkl` files are loaded by path but not yet executed; the inference bridge (likely ONNX export + Rust-side runtime, or a Python sidecar) is pending
+- **Data recording not yet wired** — the Export button opens the save dialog but writes no data; the session buffer and CSV serialization are pending
+- **Dashboard metrics are static** — no session history is persisted between app launches
+- **Model inference not yet running** — `.pt` / `.pkl` files are loaded by path but not yet executed; the inference bridge (Python sidecar via `torch` + `pickle`, registered as a Tauri `externalBin`) is pending
+- **TGC must be launched manually** — no auto-start; ThinkGear Connector must be running before clicking Start
 
 ---
