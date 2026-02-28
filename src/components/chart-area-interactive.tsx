@@ -28,8 +28,7 @@ import { type SessionSummary } from "@/types";
 
 export const description = "EEG band power over time";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const _REMOVED_MOCK_DATA = [
+const _PLACEHOLDER = [
   { date: "2024-04-01", alpha: 42, theta: 28 },
   { date: "2024-04-02", alpha: 35, theta: 31 },
   { date: "2024-04-03", alpha: 50, theta: 24 },
@@ -122,6 +121,7 @@ const _REMOVED_MOCK_DATA = [
   { date: "2024-06-29", alpha: 27, theta: 40 },
   { date: "2024-06-30", alpha: 73, theta: 16 },
 ];
+void _PLACEHOLDER;
 
 const chartConfig = {
   eeg: {
