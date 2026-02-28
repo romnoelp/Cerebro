@@ -131,7 +131,9 @@ const SessionScreen = () => {
 
   const signalMessage = !isConnected
     ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
-    : "Headset connected but signal quality is poor. Adjust the headband and try again.";
+    : poorSignalLevel >= 200
+      ? "ThinkGear Connector is running but no headset was detected. Turn on the headset and make sure it is paired."
+      : "Headset connected but signal quality is poor. Adjust the headband and try again.";
 
   const handleStopScanning = () => {
     setIsScanning(false);
@@ -195,7 +197,9 @@ const SessionScreen = () => {
                       isConnected
                         ? poorSignalLevel < 50
                           ? "bg-emerald-500"
-                          : "bg-amber-500"
+                          : poorSignalLevel >= 200
+                            ? "bg-foreground/30"
+                            : "bg-amber-500"
                         : "bg-foreground/30",
                     )}
                   />
@@ -203,8 +207,10 @@ const SessionScreen = () => {
                     {isConnected
                       ? poorSignalLevel < 50
                         ? "Signal OK"
-                        : "Poor Signal"
-                      : "No Headset"}
+                        : poorSignalLevel >= 200
+                          ? "No Headset"
+                          : "Poor Signal"
+                      : "No TGC"}
                   </span>
                 </div>
               )}
