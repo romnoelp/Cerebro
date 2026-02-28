@@ -1,88 +1,114 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { sileo } from "sileo";
-import { requiredModels, ModelKey } from "../constants";
+import { requiredModels, ModelDef, ModelKey } from "../constants";
 
-// Specialist: opens the OS file picker and returns the selected path.
+// ── Pure helpers ──────────────────────────────────────────────────────────────
+
 async function pickModelFile(): Promise<string | null> {
   const selected = await open({
     multiple: false,
-    filters: [{ name: "Model Files", extensions: ["pt", "pkl"] }],
+    filters: [{ name: "Model Files", extensions: ["onnx", "json"] }],
   });
   return selected ? (selected as string) : null;
 }
 
-// Specialist: extracts the bare filename from a full OS path.
-function extractFilename(path: string): string {
-  return path.split(/[\\/]/).pop() ?? "";
-}
+// Identifies which required model a file belongs to by its extension.
+// Returns null and notifies the user if the extension is not recognised.
+function classifyFile(path: string): { key: ModelKey; model: ModelDef; filename: string } | null {
+  const filename = path.split(/[\\/]/).pop() ?? "";
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const model = requiredModels.find((m) => m.ext === ext) ?? null;
 
-// Specialist: finds a required model definition by its filename.
-function findModelByFilename(filename: string) {
-  return requiredModels.find((m) => m.filename === filename) ?? null;
-}
-
-// Specialist: fires the appropriate success notification after registration.
-function notifyModelRegistered(
-  label: string,
-  filename: string,
-  nowAllLoaded: boolean,
-): void {
-  if (nowAllLoaded) {
-    sileo.success({
-      title: "All models loaded",
-      description: "Session can now be started.",
+  if (!model) {
+    sileo.error({
+      title: "Unrecognized file",
+      description: `"${filename}" must be .onnx or .json`,
     });
-  } else {
-    sileo.success({ title: `${label} loaded`, description: filename });
+    return null;
   }
+
+  return { key: model.key, model, filename };
 }
+
+function notifyAlreadyRegistered(model: ModelDef) {
+  sileo.info({
+    title: `${model.label} already registered`,
+    description: "Pick the other file, or restart to swap it.",
+  });
+}
+
+function notifyStaged(model: ModelDef, filename: string) {
+  sileo.success({ title: `${model.label} registered`, description: filename });
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
 export const useModelLoader = () => {
-  const [loadedModels, setLoadedModels] = useState<Record<ModelKey, boolean>>({
-    ddqn: false,
-    tcn: false,
+  const [staged, setStaged] = useState<Record<ModelKey, boolean>>({
+    onnx: false,
     scaler: false,
   });
+  // Accumulates OS paths until both are known, then hands them to the backend.
+  const pathsRef = useRef<Record<ModelKey, string | null>>({ onnx: null, scaler: null });
+  // Becomes true only after the backend confirms the ONNX session is live.
+  const [modelReady, setModelReady] = useState(false);
 
-  const allLoaded = Object.values(loadedModels).every(Boolean);
+  // Records the file's path in the ref and marks it staged in state.
+  // Returns the resulting staged map so callers can inspect it immediately
+  // without waiting for the next render.
+  function stageFile(key: ModelKey, path: string): Record<ModelKey, boolean> {
+    pathsRef.current = { ...pathsRef.current, [key]: path };
+    const next = { ...staged, [key]: true };
+    setStaged(next);
+    return next;
+  }
+
+  async function activateModel(paths: Record<ModelKey, string | null>) {
+    await invoke("load_model_files", {
+      paths: { onnxPath: paths.onnx!, scalerPath: paths.scaler! },
+    });
+    setModelReady(true);
+    sileo.success({
+      title: "All models loaded",
+      description: "ONNX session is live. Session can now be started.",
+    });
+  }
+
+  function rollback(err: unknown) {
+    // Stale paths must not persist — a partial load would silently produce
+    // wrong inference if the user retries with a different file.
+    setStaged({ onnx: false, scaler: false });
+    pathsRef.current = { onnx: null, scaler: null };
+    setModelReady(false);
+    sileo.error({ title: "Failed to load models", description: String(err) });
+  }
 
   const handleLoadModel = async () => {
     try {
       const path = await pickModelFile();
       if (!path) return;
 
-      const filename = extractFilename(path);
-      const match = findModelByFilename(filename);
+      const classified = classifyFile(path);
+      if (!classified) return;
 
-      if (!match) {
-        sileo.error({
-          title: "Unrecognized model file",
-          description: `"${filename}" is not a required model file.`,
-        });
+      if (staged[classified.key]) {
+        notifyAlreadyRegistered(classified.model);
         return;
       }
 
-      if (loadedModels[match.key]) {
-        sileo.info({
-          title: `${match.label} already loaded`,
-          description: "This model is already registered.",
-        });
-        return;
+      const nextStaged = stageFile(classified.key, path);
+
+      if (Object.values(nextStaged).every(Boolean)) {
+        await activateModel(pathsRef.current);
+      } else {
+        notifyStaged(classified.model, classified.filename);
       }
-
-      const next = { ...loadedModels, [match.key]: true };
-      setLoadedModels(next);
-
-      const nowAllLoaded = Object.values(next).every(Boolean);
-      notifyModelRegistered(match.label, match.filename, nowAllLoaded);
-    } catch {
-      sileo.error({
-        title: "Failed to open file",
-        description: "An error occurred while opening the file dialog.",
-      });
+    } catch (err) {
+      rollback(err);
     }
   };
 
-  return { loadedModels, allLoaded, handleLoadModel };
+  return { loadedModels: staged, modelReady, handleLoadModel };
 };

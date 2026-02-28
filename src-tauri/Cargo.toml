@@ -23,4 +23,9 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# ONNX Runtime — download-binaries pulls the correct native library automatically,
+# so no system-level ORT install is required.
+# ndarray feature wires ort's ndarray tensor conversion impls.
+# 0.15 matches the version ort 2.0.0-rc.11 uses internally.
+ort = { version = "2.0.0-rc.11", features = ["download-binaries"] }
 

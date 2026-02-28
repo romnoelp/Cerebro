@@ -6,13 +6,13 @@ import { requiredModels, ModelKey } from "../constants";
 
 interface ModelManagementCardProps {
   loadedModels: Record<ModelKey, boolean>;
-  allLoaded: boolean;
+  modelReady: boolean;
   onLoadModel: () => void;
 }
 
 export const ModelManagementCard = ({
   loadedModels,
-  allLoaded,
+  modelReady,
   onLoadModel,
 }: ModelManagementCardProps) => {
   return (
@@ -37,7 +37,7 @@ export const ModelManagementCard = ({
             variant="default"
             className="cursor-pointer gap-1.5"
             onClick={onLoadModel}
-            disabled={allLoaded}>
+            disabled={modelReady}>
             Load Model
           </LiquidButton>
         </div>
@@ -48,7 +48,7 @@ export const ModelManagementCard = ({
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-700",
-                allLoaded ? "bg-foreground/80" : "bg-foreground/30",
+                modelReady ? "bg-foreground/80" : "bg-foreground/30",
               )}
               style={{
                 width: `${(Object.values(loadedModels).filter(Boolean).length / requiredModels.length) * 100}%`,
@@ -58,7 +58,7 @@ export const ModelManagementCard = ({
           <span
             className={cn(
               "text-[10px] font-mono tabular-nums shrink-0 transition-colors",
-              allLoaded ? "text-foreground/70" : "text-muted-foreground/60",
+              modelReady ? "text-foreground/70" : "text-muted-foreground/60",
             )}>
             {Object.values(loadedModels).filter(Boolean).length}/
             {requiredModels.length}

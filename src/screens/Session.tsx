@@ -36,7 +36,7 @@ const SessionScreen = () => {
     sampleCount,
     reset: resetTimer,
   } = useSessionTimer(isScanning);
-  const { loadedModels, allLoaded, handleLoadModel } = useModelLoader();
+  const { loadedModels, modelReady, handleLoadModel } = useModelLoader();
   const { liveData, isConnected, poorSignalLevel } = useTgcConnection(
     isScanning || showCalibrationDialog,
   );
@@ -225,8 +225,8 @@ const SessionScreen = () => {
                   </span>
                 </>
               }
-              isActive={allLoaded}
-              highlight={allLoaded}
+              isActive={modelReady}
+              highlight={modelReady}
             />
           </div>
 
@@ -241,14 +241,14 @@ const SessionScreen = () => {
             <div className="flex flex-col gap-3 h-full">
               <ModelManagementCard
                 loadedModels={loadedModels}
-                allLoaded={allLoaded}
+                modelReady={modelReady}
                 onLoadModel={handleLoadModel}
               />
 
               <SessionControlsCard
                 isScanning={isScanning}
                 hasStarted={hasStarted}
-                allLoaded={allLoaded}
+                allLoaded={modelReady}
                 onStartScanning={handleStartScanning}
                 onStopScanning={handleStopScanning}
                 onExport={handleExport}

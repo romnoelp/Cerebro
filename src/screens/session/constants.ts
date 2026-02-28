@@ -1,23 +1,22 @@
 export const requiredModels = [
   {
-    key: "ddqn" as const,
-    filename: "ddqn_best_checkpoint.pt",
-    label: "DDQN Policy Model",
-    description: "Deep Q-Network decision model",
-  },
-  {
-    key: "tcn" as const,
-    filename: "tcn_best_checkpoint.pt",
-    label: "TCN Feature Extractor",
-    description: "Temporal Convolutional Network",
+    key: "onnx" as const,
+    filename: "cerebro_unified.onnx",
+    label: "ONNX Inference Model",
+    description: "Unified TCN+DDQN ONNX export",
+    ext: "onnx",
   },
   {
     key: "scaler" as const,
-    filename: "scaler.pkl",
+    filename: "scaler_params.json",
     label: "Signal Scaler",
-    description: "EEG signal preprocessing scaler",
+    description: "StandardScaler parameters (JSON)",
+    ext: "json",
   },
 ] as const;
+
+export type ModelKey = (typeof requiredModels)[number]["key"];
+export type ModelDef = (typeof requiredModels)[number];
 
 export const calibrationSteps = [
   "Participant seated comfortably...",
@@ -27,5 +26,3 @@ export const calibrationSteps = [
 ];
 
 export const stepDuration = 1400;
-
-export type ModelKey = (typeof requiredModels)[number]["key"];

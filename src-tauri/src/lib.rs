@@ -1,203 +1,83 @@
-use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::net::TcpStream;
+mod commands;
+mod models;
+mod networking;
+
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
-use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use commands::headset::{
+    get_focus_prediction, get_mock_prediction, load_model_files, start_tgc, stop_tgc,
+};
+use models::ml_data::ModelManager;
+use tauri::Manager;
 
-// TGC listens on localhost:13854; appKey must be exactly 40 hex chars.
-const TGC_ADDR: &str = "127.0.0.1:13854";
-const TGC_AUTH: &str =
-    r#"{"appName":"Cerebro","appKey":"0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d"}"#;
+// ── State types ──────────────────────────────────────────────────────────────
 
-// Mirrors the TGC `eegPower` JSON object.
-#[derive(Debug, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct RawEegPower {
-    delta: u32,
-    theta: u32,
-    low_alpha: u32,
-    high_alpha: u32,
-    low_beta: u32,
-    high_beta: u32,
-    low_gamma: u32,
-    high_gamma: u32,
+pub struct HeadsetState {
+    pub stop_flag: Arc<AtomicBool>,
+    pub thread: Option<std::thread::JoinHandle<()>>,
 }
 
-#[derive(Debug, Deserialize, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-struct RawESense {
-    attention: Option<u8>,
-    meditation: Option<u8>,
+impl HeadsetState {
+    pub fn is_running(&self) -> bool {
+        self.thread
+            .as_ref()
+            .map(|t| !t.is_finished())
+            .unwrap_or(false)
+    }
+
+    // Clears the stop flag so the next session starts with a fresh signal.
+    pub fn reset(&mut self) {
+        self.stop_flag = Arc::new(AtomicBool::new(false));
+        self.thread = None;
+    }
+
+    pub fn stop(&mut self) {
+        self.stop_flag.store(true, Ordering::Relaxed);
+        // Dropping the handle without joining lets the thread finish its current
+        // read-timeout cycle (~500 ms) rather than blocking the UI thread.
+        self.thread.take();
+    }
 }
 
-// TGC sends many packet types; all fields are optional.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TgcPacket {
-    eeg_power: Option<RawEegPower>,
-    e_sense: Option<RawESense>,
-    poor_signal_level: Option<u8>,
-}
-
-// Emitted as the `tgc-data` event. Field names match BANDS keys in the chart.
-#[derive(Debug, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct EegPayload {
-    pub delta: u32,
-    pub theta: u32,
-    pub low_alpha: u32,
-    pub high_alpha: u32,
-    pub low_beta: u32,
-    pub high_beta: u32,
-    pub low_gamma: u32,
-    pub mid_gamma: u32, // TGC's highGamma → midGamma
-    pub attention: u8,
-    pub meditation: u8,
-    pub poor_signal_level: u8, // 0 = clean, 200 = no contact
-}
-
-struct TgcState {
-    stop_flag: Arc<AtomicBool>,
-    thread: Option<std::thread::JoinHandle<()>>,
-}
-
-impl Default for TgcState {
+impl Default for HeadsetState {
     fn default() -> Self {
-        TgcState {
+        Self {
             stop_flag: Arc::new(AtomicBool::new(false)),
             thread: None,
         }
     }
 }
 
-impl TgcState {
-    // Specialist: reports whether the reader thread is alive.
-    fn is_running(&self) -> bool {
-        self.thread
-            .as_ref()
-            .map(|t| !t.is_finished())
-            .unwrap_or(false)
-    }
-}
+pub type HeadsetStateGuard = Mutex<HeadsetState>;
 
-type TgcStateGuard = Mutex<TgcState>;
+// Arc so load_model_files can replace the inner Option without cloning state
+// out of the Tauri manager.
+pub type ModelManagerState = Arc<Mutex<Option<ModelManager>>>;
 
-// Specialist: configures an established stream — sets read timeout, sends auth,
-// and announces the connection. Panics if the stream cannot be cloned.
-fn handshake(stream: &TcpStream, app: &AppHandle) {
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-    let mut writer = stream.try_clone().expect("clone stream for write");
-    let _ = writeln!(writer, "{}", TGC_AUTH);
-    let _ = app.emit("tgc-status", "connected");
-}
-
-// Retries TCP connect every 2s until successful or stop_flag is set.
-fn try_connect(app: &AppHandle, stop_flag: &Arc<AtomicBool>) -> Option<TcpStream> {
-    loop {
-        if stop_flag.load(Ordering::Relaxed) {
-            return None;
-        }
-        if let Ok(s) = TcpStream::connect(TGC_ADDR) {
-            return Some(s);
-        }
-        let _ = app.emit("tgc-status", "disconnected");
-        std::thread::sleep(Duration::from_secs(2));
-    }
-}
-
-// Parses a TGC JSON line into an EegPayload. Returns None for non-eegPower packets.
-fn parse_packet(line: &str) -> Option<EegPayload> {
-    if line.is_empty() {
-        return None;
-    }
-    let packet: TgcPacket = serde_json::from_str(line).ok()?;
-    let poor_signal_level = packet.poor_signal_level.unwrap_or(200);
-    let sense = packet.e_sense.unwrap_or_default();
-    let eeg = packet.eeg_power?;
-    Some(EegPayload {
-        delta: eeg.delta,
-        theta: eeg.theta,
-        low_alpha: eeg.low_alpha,
-        high_alpha: eeg.high_alpha,
-        low_beta: eeg.low_beta,
-        high_beta: eeg.high_beta,
-        low_gamma: eeg.low_gamma,
-        mid_gamma: eeg.high_gamma,
-        attention: sense.attention.unwrap_or(0),
-        meditation: sense.meditation.unwrap_or(0),
-        poor_signal_level,
-    })
-}
-
-fn run_tgc_reader(app: AppHandle, stop_flag: Arc<AtomicBool>) {
-    let Some(stream) = try_connect(&app, &stop_flag) else {
-        return;
-    };
-
-    handshake(&stream, &app);
-
-    for result in BufReader::new(stream).lines() {
-        if stop_flag.load(Ordering::Relaxed) {
-            break;
-        }
-        let line = match result {
-            Ok(l) => l,
-            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => continue,
-            Err(_) => {
-                let _ = app.emit("tgc-status", "disconnected");
-                break;
-            }
-        };
-        let Some(payload) = parse_packet(&line) else {
-            continue;
-        };
-        let _ = app.emit("tgc-data", payload);
-    }
-}
-
-/// Start the TGC reader thread. Idempotent — won't duplicate a running connection.
-#[tauri::command]
-fn start_tgc(app: AppHandle, state: State<TgcStateGuard>) -> Result<(), String> {
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-
-    if guard.is_running() {
-        return Ok(());
-    }
-
-    guard.stop_flag = Arc::new(AtomicBool::new(false));
-    let stop_flag = guard.stop_flag.clone();
-
-    let handle = std::thread::spawn(move || {
-        run_tgc_reader(app, stop_flag);
-    });
-
-    guard.thread = Some(handle);
-    Ok(())
-}
-
-/// Signal the reader thread to stop. Thread exits within 500ms (read timeout).
-#[tauri::command]
-fn stop_tgc(state: State<TgcStateGuard>) -> Result<(), String> {
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-    guard.stop_flag.store(true, Ordering::Relaxed);
-    if let Some(thread) = guard.thread.take() {
-        drop(thread);
-    }
-    Ok(())
-}
+// ── Entry point ──────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(TgcStateGuard::default())
-        .invoke_handler(tauri::generate_handler![start_tgc, stop_tgc])
+        .setup(|app| {
+            // ModelManager starts as None — the user loads the files via the
+            // Model Setup card in the Session screen, which calls load_model_files.
+            app.manage(Arc::new(Mutex::new(None::<ModelManager>)) as ModelManagerState);
+            app.manage(Mutex::new(HeadsetState::default()) as HeadsetStateGuard);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            load_model_files,
+            start_tgc,
+            stop_tgc,
+            get_focus_prediction,
+            get_mock_prediction,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

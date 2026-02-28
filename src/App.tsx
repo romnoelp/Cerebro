@@ -42,7 +42,10 @@ const App = () => {
 
   return (
     <>
-      <Toaster position="top-center" theme="dark" />
+      <Toaster
+        position="top-center"
+        theme={(resolvedTheme as "light" | "dark") ?? "dark"}
+      />
       <AnimatePresence mode="wait">
         {screen === "session" ? (
           <Layout key="session" />
