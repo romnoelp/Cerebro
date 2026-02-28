@@ -22,11 +22,11 @@ const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
 };
 
 const Layout = () => {
-  const [selected, setSelected] = React.useState<AppFile>("dashboard");
+  const [activeScreen, setActiveScreen] = React.useState<AppFile>("dashboard");
   const { resolvedTheme } = useTheme();
 
-  const isLive = LIVE_SCREENS.includes(selected);
-  const LiveComponent = SCREEN_COMPONENTS[selected];
+  const isLiveScreen = LIVE_SCREENS.includes(activeScreen);
+  const ActiveScreen = SCREEN_COMPONENTS[activeScreen];
 
   return (
     <motion.div
@@ -44,7 +44,7 @@ const Layout = () => {
           } as React.CSSProperties
         }
         className="h-screen overflow-hidden">
-        <AppSidebar selected={selected} onSelect={setSelected} />
+        <AppSidebar selected={activeScreen} onSelect={setActiveScreen} />
 
         <SidebarInset className="relative overflow-hidden bg-transparent!">
           <StarsBackground
@@ -54,17 +54,17 @@ const Layout = () => {
               "dark:bg-[radial-gradient(ellipse_at_bottom,#262626_0%,#000_100%)] bg-[radial-gradient(ellipse_at_bottom,#f5f5f5_0%,#fff_100%)]",
             )}
           />
-          <SiteHeader page={selected} />
-          {isLive ? (
+          <SiteHeader page={activeScreen} />
+          {isLiveScreen ? (
             <AnimatePresence mode="wait">
-              <React.Fragment key={selected}>
-                <LiveComponent />
+              <React.Fragment key={activeScreen}>
+                <ActiveScreen />
               </React.Fragment>
             </AnimatePresence>
           ) : (
             <CodeView
-              filename={FILE_LABELS[selected]}
-              source={FILE_SOURCE[selected]}
+              filename={FILE_LABELS[activeScreen]}
+              source={FILE_SOURCE[activeScreen]}
             />
           )}
         </SidebarInset>

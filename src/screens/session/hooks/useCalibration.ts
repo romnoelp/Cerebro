@@ -30,25 +30,25 @@ export const useCalibration = ({
     if (!active || signalFailed) return;
 
     if (calibrationStep === 1) {
-      const t = setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         if (!isConnectedRef.current || poorSignalLevelRef.current >= 50) {
           setSignalFailed(true);
         } else {
           setCalibrationStep((i) => i + 1);
         }
       }, stepDuration);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timeoutId);
     }
 
     if (calibrationStep < calibrationSteps.length - 1) {
-      const t = setTimeout(
+      const timeoutId = setTimeout(
         () => setCalibrationStep((i) => i + 1),
         stepDuration,
       );
-      return () => clearTimeout(t);
+      return () => clearTimeout(timeoutId);
     } else {
-      const t = setTimeout(() => setShowStartButton(true), stepDuration);
-      return () => clearTimeout(t);
+      const timeoutId = setTimeout(() => setShowStartButton(true), stepDuration);
+      return () => clearTimeout(timeoutId);
     }
   }, [active, calibrationStep, signalFailed]);
 

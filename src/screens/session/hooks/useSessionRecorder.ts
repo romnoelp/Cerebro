@@ -23,22 +23,22 @@ const CSV_HEADER =
   "timestamp,delta,theta,lowAlpha,highAlpha,lowBeta,highBeta,lowGamma,midGamma," +
   "attention,meditation,poorSignalLevel,focusLabel,focusPrediction";
 
-function rowToLine(r: CsvRow): string {
+function rowToLine(row: CsvRow): string {
   return [
-    r.timestamp,
-    r.delta,
-    r.theta,
-    r.lowAlpha,
-    r.highAlpha,
-    r.lowBeta,
-    r.highBeta,
-    r.lowGamma,
-    r.midGamma,
-    r.attention,
-    r.meditation,
-    r.poorSignalLevel,
-    r.focusLabel,
-    r.focusPrediction,
+    row.timestamp,
+    row.delta,
+    row.theta,
+    row.lowAlpha,
+    row.highAlpha,
+    row.lowBeta,
+    row.highBeta,
+    row.lowGamma,
+    row.midGamma,
+    row.attention,
+    row.meditation,
+    row.poorSignalLevel,
+    row.focusLabel,
+    row.focusPrediction,
   ].join(",");
 }
 

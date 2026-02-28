@@ -4,14 +4,14 @@ export const useSessionTimer = (isScanning: boolean) => {
   const [elapsed, setElapsed] = useState(0);
   const [sampleCount, setSampleCount] = useState(0);
 
-  // Simulated sample counter (~512 Hz NeuroSky rate, shown as ~512 samples/s)
+  // Advances elapsed time and sample count at ~512 Hz (NeuroSky's nominal sample rate).
   useEffect(() => {
     if (!isScanning) return;
-    const id = setInterval(() => {
+    const intervalId = setInterval(() => {
       setElapsed((s) => s + 1);
       setSampleCount((s) => s + 512);
     }, 1000);
-    return () => clearInterval(id);
+    return () => clearInterval(intervalId);
   }, [isScanning]);
 
   const reset = () => {

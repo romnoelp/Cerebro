@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import { cn } from "@/lib/utils";
 import { calibrationSteps } from "../constants";
-import { EASE as ease } from "@/lib/constants";
+import { EASE } from "@/lib/constants";
 
 interface CalibrationDialogProps {
   open: boolean;
@@ -33,7 +33,6 @@ export const CalibrationDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg border border-border/40 bg-background/95 backdrop-blur-sm">
         <div className="flex flex-col items-center gap-8 pt-12 pb-6">
-          {/* Neural Network Icon with rotating rings */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative flex items-center justify-center">
               <motion.div
@@ -67,7 +66,6 @@ export const CalibrationDialog = ({
             </span>
           </div>
 
-          {/* Instructions */}
           <div className="flex flex-col gap-3 text-center">
             <h3 className="text-sm font-semibold">Participant Calibration</h3>
             <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
@@ -81,7 +79,6 @@ export const CalibrationDialog = ({
             </div>
           </div>
 
-          {/* Steps or error message */}
           {signalFailed ? (
             <motion.div
               className="flex flex-col gap-2 w-full text-center"
@@ -89,7 +86,7 @@ export const CalibrationDialog = ({
               animate={{
                 opacity: 1,
                 y: 0,
-                transition: { duration: 0.3, ease },
+                transition: { duration: 0.3, ease: EASE },
               }}>
               <p className="text-xs text-muted-foreground/80 font-mono">
                 {signalMessage}
@@ -109,7 +106,7 @@ export const CalibrationDialog = ({
                     animate={{
                       opacity: 1,
                       x: 0,
-                      transition: { duration: 0.3, ease: ease },
+                      transition: { duration: 0.3, ease: EASE },
                     }}>
                     <span
                       className={cn(
@@ -144,14 +141,13 @@ export const CalibrationDialog = ({
             </div>
           )}
 
-          {/* Buttons */}
           {signalFailed ? (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{
                 opacity: 1,
                 y: 0,
-                transition: { duration: 0.4, ease },
+                transition: { duration: 0.4, ease: EASE },
               }}
               className="w-full flex flex-col gap-2">
               <Button
@@ -177,7 +173,7 @@ export const CalibrationDialog = ({
                     animate={{
                       opacity: 1,
                       y: 0,
-                      transition: { duration: 0.5, ease: ease },
+                      transition: { duration: 0.5, ease: EASE },
                     }}
                     className="w-full flex flex-col gap-2">
                     <Button

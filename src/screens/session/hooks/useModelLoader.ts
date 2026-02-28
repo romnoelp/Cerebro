@@ -14,8 +14,6 @@ async function pickModelFile(): Promise<string | null> {
   return selected ? (selected as string) : null;
 }
 
-// Identifies which required model a file belongs to by its extension.
-// Returns null and notifies the user if the extension is not recognised.
 function classifyFile(path: string): { key: ModelKey; model: ModelDef; filename: string } | null {
   const filename = path.split(/[\\/]/).pop() ?? "";
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -60,9 +58,9 @@ export const useModelLoader = () => {
   // without waiting for the next render.
   function stageFile(key: ModelKey, path: string): Record<ModelKey, boolean> {
     pathsRef.current = { ...pathsRef.current, [key]: path };
-    const next = { ...staged, [key]: true };
-    setStaged(next);
-    return next;
+    const updatedStaged = { ...staged, [key]: true };
+    setStaged(updatedStaged);
+    return updatedStaged;
   }
 
   async function activateModel(paths: Record<ModelKey, string | null>) {
@@ -98,9 +96,9 @@ export const useModelLoader = () => {
         return;
       }
 
-      const nextStaged = stageFile(classified.key, path);
+      const updatedStaged = stageFile(classified.key, path);
 
-      if (Object.values(nextStaged).every(Boolean)) {
+      if (Object.values(updatedStaged).every(Boolean)) {
         await activateModel(pathsRef.current);
       } else {
         notifyStaged(classified.model, classified.filename);

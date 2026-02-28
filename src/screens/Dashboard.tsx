@@ -13,7 +13,6 @@ const DashboardScreen = () => {
       transition={{ duration: 0.3, ease: EASE }}>
       <div className="@container/main flex flex-col gap-2">
         <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2">
-          {/* Page header */}
           <div className="flex items-end justify-between px-4 lg:px-6">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-semibold tracking-tight">

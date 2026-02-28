@@ -1,13 +1,13 @@
 export const formatElapsed = (secs: number) => {
-  const m = Math.floor(secs / 60)
+  const minutes = Math.floor(secs / 60)
     .toString()
     .padStart(2, "0");
-  const s = (secs % 60).toString().padStart(2, "0");
-  return `${m}:${s}`;
+  const seconds = (secs % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
 };
 
-export const formatSamples = (n: number) =>
-  n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+export const formatSamples = (count: number) =>
+  count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count);
 
 /** Builds a timestamped CSV filename for a session export. */
 export function buildExportFilename(subjectName: string): string {

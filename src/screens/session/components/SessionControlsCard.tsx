@@ -58,7 +58,6 @@ export const SessionControlsCard = ({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-1.5 px-4 pb-0">
-        {/* Start/Resume Scanning */}
         <div
           onClick={() => (!allLoaded || isScanning ? null : onStartScanning())}
           className={cn(
@@ -80,7 +79,6 @@ export const SessionControlsCard = ({
           </div>
         </div>
 
-        {/* Pause Scanning */}
         <div
           onClick={() => (!isScanning ? null : onStopScanning())}
           className={cn(
@@ -102,7 +100,6 @@ export const SessionControlsCard = ({
 
         <div className="h-px bg-border/40 my-0.5" />
 
-        {/* Export Data */}
         <div
           onClick={() => (isScanning || !hasStarted ? null : onExport())}
           className={cn(

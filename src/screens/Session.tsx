@@ -2,7 +2,7 @@ import * as React from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { sileo } from "sileo";
-import { type FocusPrediction } from "@/types";
+import { type FocusPrediction, type TgcBandData } from "@/types";
 import { IconClockHour3, IconBrain, IconDatabase } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { EASE } from "@/lib/constants";
@@ -109,19 +109,22 @@ const SessionScreen = () => {
     if (shouldResetChart) setShouldResetChart(false);
   }, [shouldResetChart]);
 
+  // Runs inference when the model is ready; records label -1 when it is not,
+  // so no EEG packet is silently dropped.
+  function recordEegPacket(eegPayload: TgcBandData) {
+    if (modelReady) {
+      invoke<FocusPrediction>("get_focus_prediction", { payload: eegPayload })
+        .then((prediction) => recorder.record(eegPayload, prediction))
+        .catch(() => recorder.record(eegPayload, undefined));
+    } else {
+      recorder.record(eegPayload, undefined);
+    }
+  }
+
   // Record one row per accepted TGC packet while the session is active.
-  // Inference runs only when the model is loaded; otherwise the row is saved
-  // with label -1 so no EEG data is silently dropped.
   React.useEffect(() => {
     if (!isScanning || !rawData) return;
-
-    if (modelReady) {
-      invoke<FocusPrediction>("get_focus_prediction", { payload: rawData })
-        .then((pred) => recorder.record(rawData, pred))
-        .catch(() => recorder.record(rawData, undefined));
-    } else {
-      recorder.record(rawData, undefined);
-    }
+    recordEegPacket(rawData);
     // rawData reference changes on every new packet — that's the intended trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawData]);
