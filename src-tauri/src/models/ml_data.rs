@@ -69,7 +69,7 @@ impl ModelManager {
     // Converts raw absolute band powers to the 11-feature vector expected by
     // the model. Must stay in sync with Python's `_features_from_bands`.
     fn extract_features(&mut self, payload: &EegPayload) -> [f32; 11] {
-        let abs = [
+        let absolute_powers = [
             payload.delta as f32,
             payload.theta as f32,
             payload.low_alpha as f32,
@@ -79,25 +79,25 @@ impl ModelManager {
             payload.low_gamma as f32,
             payload.mid_gamma as f32,
         ];
-        let rel = relative_powers(abs);
+        let band_relatives = relative_powers(absolute_powers);
 
-        let delta_rel = rel[0];
-        let theta = rel[1];
-        let alpha = rel[2] + rel[3];
-        let beta = rel[4] + rel[5];
+        let delta_relative = band_relatives[0];
+        let theta = band_relatives[1];
+        let alpha = band_relatives[2] + band_relatives[3];
+        let beta = band_relatives[4] + band_relatives[5];
 
-        let temporal_delta = delta_rel - self.prev_delta_relative;
-        self.prev_delta_relative = delta_rel;
+        let temporal_delta = delta_relative - self.prev_delta_relative;
+        self.prev_delta_relative = delta_relative;
 
         [
-            rel[0],
-            rel[1],
-            rel[2],
-            rel[3],
-            rel[4],
-            rel[5],
-            rel[6],
-            rel[7],
+            band_relatives[0],
+            band_relatives[1],
+            band_relatives[2],
+            band_relatives[3],
+            band_relatives[4],
+            band_relatives[5],
+            band_relatives[6],
+            band_relatives[7],
             beta / (theta + 1e-10), // β/θ ratio: rises when attention is high
             alpha / (beta + 1e-10), // α/β ratio: rises during relaxation
             temporal_delta,         // Δdelta: stationarity marker across windows
@@ -122,27 +122,32 @@ impl ModelManager {
             .run(ort::inputs!["eeg_stream" => input])
             .map_err(|e: ort::Error| e.to_string())?;
 
-        let (_, data) = outputs["focus_prediction"]
+        let (_, predicted_class_ids) = outputs["focus_prediction"]
             .try_extract_tensor::<i64>()
             .map_err(|e: ort::Error| e.to_string())?;
 
-        let label = *data
+        let predicted_class = *predicted_class_ids
             .first()
             .ok_or_else(|| "ONNX returned an empty output tensor".to_string())?;
 
         Ok(FocusPrediction {
-            label,
-            label_name: if label == 1 {
-                "Focused".to_string()
-            } else {
-                "Unfocused".to_string()
-            },
+            label: predicted_class,
+            label_name: focus_label_name(predicted_class),
         })
     }
 }
 
+// Maps a raw ONNX class index to its human-readable focus label.
+fn focus_label_name(predicted_class: i64) -> String {
+    if predicted_class == 1 {
+        "Focused".to_string()
+    } else {
+        "Unfocused".to_string()
+    }
+}
+
 // Divides each band power by the total so all eight values sum to 1.0.
-fn relative_powers(abs: [f32; 8]) -> [f32; 8] {
-    let total: f32 = abs.iter().sum::<f32>() + 1e-10;
-    abs.map(|x| x / total)
+fn relative_powers(absolute_powers: [f32; 8]) -> [f32; 8] {
+    let total: f32 = absolute_powers.iter().sum::<f32>() + 1e-10;
+    absolute_powers.map(|p| p / total)
 }

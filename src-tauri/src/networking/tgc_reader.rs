@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
 
-use crate::models::tgc_data::{EegPayload, RawESense, TgcPacket};
+use crate::models::tgc_data::{EegPayload, TgcPacket};
 
 pub const TGC_ADDR: &str = "127.0.0.1:13854";
 
@@ -82,20 +82,20 @@ pub fn parse_packet(line: &str) -> Option<EegPayload> {
     }
     let packet: TgcPacket = serde_json::from_str(line).ok()?;
     let poor_signal_level = packet.poor_signal_level.unwrap_or(200);
-    let sense = packet.e_sense.unwrap_or_else(RawESense::default);
-    let eeg = packet.eeg_power?;
+    let esense = packet.e_sense.unwrap_or_default();
+    let eeg_power = packet.eeg_power?;
 
     Some(EegPayload {
-        delta: eeg.delta,
-        theta: eeg.theta,
-        low_alpha: eeg.low_alpha,
-        high_alpha: eeg.high_alpha,
-        low_beta: eeg.low_beta,
-        high_beta: eeg.high_beta,
-        low_gamma: eeg.low_gamma,
-        mid_gamma: eeg.high_gamma,
-        attention: sense.attention.unwrap_or(0),
-        meditation: sense.meditation.unwrap_or(0),
+        delta: eeg_power.delta,
+        theta: eeg_power.theta,
+        low_alpha: eeg_power.low_alpha,
+        high_alpha: eeg_power.high_alpha,
+        low_beta: eeg_power.low_beta,
+        high_beta: eeg_power.high_beta,
+        low_gamma: eeg_power.low_gamma,
+        mid_gamma: eeg_power.high_gamma,
+        attention: esense.attention.unwrap_or(0),
+        meditation: esense.meditation.unwrap_or(0),
         poor_signal_level,
     })
 }
