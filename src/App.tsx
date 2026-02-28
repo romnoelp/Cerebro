@@ -56,6 +56,7 @@ const App = () => {
             exit={{ opacity: 0, transition: { duration: 0.6, ease: EASE } }}>
             <StarsBackground
               starColor={resolvedTheme === "dark" ? "#FFF" : "#000"}
+              factor={0.25}
               className={cn(
                 "absolute inset-0",
                 "dark:bg-[radial-gradient(ellipse_at_bottom,#262626_0%,#000_100%)] bg-[radial-gradient(ellipse_at_bottom,#f5f5f5_0%,#fff_100%)]",
