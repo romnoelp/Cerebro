@@ -3,7 +3,11 @@
 An undergraduate thesis project exploring EEG-based focus classification in academic settings. A desktop application that performs live EEG signal acquisition, real-time deep learning inference, and brain state monitoring. Built with Tauri v2, React 19, and TypeScript.
 
 ---
+## Sample Pictures
+<img width="1281" height="729" alt="image" src="https://github.com/user-attachments/assets/71b42548-53af-4eea-8a01-d4fd5dc357ec" />
+<img width="1281" height="718" alt="image" src="https://github.com/user-attachments/assets/a172aa0a-5bb5-4756-ac2b-00cbbe4b7517" />
 
+--
 ## Overview
 
 Cerebro is the software component of a thesis investigating whether EEG signals can reliably classify student focus states during various academic tasks. It connects to a NeuroSky MindWave Mobile 2 headset via the ThinkGear Connector (TGC), streams all 8 TGAM band powers in real time through a Rust TCP bridge, runs on-device focus classification using a unified TCN+DDQN ONNX model, and exports annotated session data per subject.
