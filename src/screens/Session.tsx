@@ -111,7 +111,7 @@ const SessionScreen = () => {
 
   // Runs inference when the model is ready; records label -1 when it is not,
   // so no EEG packet is silently dropped.
-  function recordEegPacket(eegPayload: TgcBandData) {
+  const recordEegPacket = (eegPayload: TgcBandData) => {
     if (modelReady) {
       invoke<FocusPrediction>("get_focus_prediction", { payload: eegPayload })
         .then((prediction) => recorder.record(eegPayload, prediction))
@@ -119,7 +119,7 @@ const SessionScreen = () => {
     } else {
       recorder.record(eegPayload, undefined);
     }
-  }
+  };
 
   // Record one row per accepted TGC packet while the session is active.
   React.useEffect(() => {

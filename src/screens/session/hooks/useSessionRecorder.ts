@@ -23,7 +23,7 @@ const CSV_HEADER =
   "timestamp,delta,theta,lowAlpha,highAlpha,lowBeta,highBeta,lowGamma,midGamma," +
   "attention,meditation,poorSignalLevel,focusLabel,focusPrediction";
 
-function rowToLine(row: CsvRow): string {
+const rowToLine = (row: CsvRow): string => {
   return [
     row.timestamp,
     row.delta,
@@ -56,7 +56,7 @@ export function useSessionRecorder() {
    * Pass `prediction` as undefined when the model is not yet loaded — the row
    * will be recorded with label -1 and labelName "N/A" so no data is lost.
    */
-  function record(raw: TgcBandData, prediction: FocusPrediction | undefined) {
+  const record = (raw: TgcBandData, prediction: FocusPrediction | undefined) => {
     rowsRef.current.push({
       timestamp: new Date().toISOString(),
       delta: raw.delta,
@@ -77,12 +77,12 @@ export function useSessionRecorder() {
   }
 
   /** Serializes all accumulated rows to a CSV string ready for disk write. */
-  function buildCsv(): string {
+  const buildCsv = (): string => {
     return [CSV_HEADER, ...rowsRef.current.map(rowToLine)].join("\n");
   }
 
   /** Resets the recorder — call after a successful export. */
-  function clear() {
+  const clear = () => {
     rowsRef.current = [];
     setRowCount(0);
   }

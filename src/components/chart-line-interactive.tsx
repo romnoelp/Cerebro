@@ -95,11 +95,11 @@ const EMPTY_POINT: DataPoint = {
   midGamma: 0,
 };
 
-function clamp(v: number, lo: number, hi: number) {
+const clamp = (v: number, lo: number, hi: number) => {
   return Math.max(lo, Math.min(hi, v));
-}
+};
 
-function generateSeed(): DataPoint[] {
+const generateSeed = (): DataPoint[] => {
   const data: DataPoint[] = [];
   const state = Object.fromEntries(
     BANDS.map((b) => [b.key, (b.init.lo + b.init.hi) / 2]),
@@ -121,7 +121,7 @@ function generateSeed(): DataPoint[] {
     } as DataPoint);
   }
   return data;
-}
+};
 
 const chartConfig = {
   bands: { label: "Band Power (μV²)" },

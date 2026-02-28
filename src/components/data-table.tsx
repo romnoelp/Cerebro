@@ -108,8 +108,7 @@ export const schema = z.object({
   reviewer: z.string(),
 });
 
-// Create a separate component for the drag handle
-function DragHandle({ id }: { id: number }) {
+const DragHandle = ({ id }: { id: number }) => {
   const { attributes, listeners } = useSortable({
     id,
   });
@@ -125,7 +124,7 @@ function DragHandle({ id }: { id: number }) {
       <span className="sr-only">Drag to reorder</span>
     </Button>
   );
-}
+};
 
 const columns: ColumnDef<z.infer<typeof schema>>[] = [
   {
@@ -298,7 +297,7 @@ const columns: ColumnDef<z.infer<typeof schema>>[] = [
   },
 ];
 
-function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
+const DraggableRow = ({ row }: { row: Row<z.infer<typeof schema>> }) => {
   const { transform, transition, setNodeRef, isDragging } = useSortable({
     id: row.original.id,
   });
@@ -320,7 +319,7 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
       ))}
     </TableRow>
   );
-}
+};
 
 export function DataTable({
   data: initialData,
@@ -376,7 +375,7 @@ export function DataTable({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   });
 
-  function handleDragEnd(event: DragEndEvent) {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (active && over && active.id !== over.id) {
       setData((data) => {
@@ -385,7 +384,7 @@ export function DataTable({
         return arrayMove(data, oldIndex, newIndex);
       });
     }
-  }
+  };
 
   return (
     <div className="w-full flex flex-col justify-start gap-6">
@@ -575,7 +574,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
+const TableCellViewer = ({ item }: { item: z.infer<typeof schema> }) => {
   const isMobile = useIsMobile();
 
   return (
@@ -731,4 +730,4 @@ function TableCellViewer({ item }: { item: z.infer<typeof schema> }) {
       </DrawerContent>
     </Drawer>
   );
-}
+};

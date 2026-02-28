@@ -6,7 +6,7 @@ import { requiredModels, ModelDef, ModelKey } from "../constants";
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
-async function pickModelFile(): Promise<string | null> {
+const pickModelFile = async (): Promise<string | null> => {
   const selected = await open({
     multiple: false,
     filters: [{ name: "Model Files", extensions: ["onnx", "json"] }],
@@ -14,7 +14,7 @@ async function pickModelFile(): Promise<string | null> {
   return selected ? (selected as string) : null;
 }
 
-function classifyFile(path: string): { key: ModelKey; model: ModelDef; filename: string } | null {
+const classifyFile = (path: string): { key: ModelKey; model: ModelDef; filename: string } | null => {
   const filename = path.split(/[\\/]/).pop() ?? "";
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const model = requiredModels.find((m) => m.ext === ext) ?? null;
@@ -30,14 +30,14 @@ function classifyFile(path: string): { key: ModelKey; model: ModelDef; filename:
   return { key: model.key, model, filename };
 }
 
-function notifyAlreadyRegistered(model: ModelDef) {
+const notifyAlreadyRegistered = (model: ModelDef) => {
   sileo.info({
     title: `${model.label} already registered`,
     description: "Pick the other file, or restart to swap it.",
   });
 }
 
-function notifyStaged(model: ModelDef, filename: string) {
+const notifyStaged = (model: ModelDef, filename: string) => {
   sileo.success({ title: `${model.label} registered`, description: filename });
 }
 
@@ -56,14 +56,14 @@ export const useModelLoader = () => {
   // Records the file's path in the ref and marks it staged in state.
   // Returns the resulting staged map so callers can inspect it immediately
   // without waiting for the next render.
-  function stageFile(key: ModelKey, path: string): Record<ModelKey, boolean> {
+  const stageFile = (key: ModelKey, path: string): Record<ModelKey, boolean> => {
     pathsRef.current = { ...pathsRef.current, [key]: path };
     const updatedStaged = { ...staged, [key]: true };
     setStaged(updatedStaged);
     return updatedStaged;
   }
 
-  async function activateModel(paths: Record<ModelKey, string | null>) {
+  const activateModel = async (paths: Record<ModelKey, string | null>) => {
     await invoke("load_model_files", {
       paths: { onnxPath: paths.onnx!, scalerPath: paths.scaler! },
     });
@@ -74,7 +74,7 @@ export const useModelLoader = () => {
     });
   }
 
-  function rollback(err: unknown) {
+  const rollback = (err: unknown) => {
     // Stale paths must not persist — a partial load would silently produce
     // wrong inference if the user retries with a different file.
     setStaged({ onnx: false, scaler: false });
