@@ -8,7 +8,7 @@ use std::sync::{
 };
 
 use commands::headset::{
-    get_focus_prediction, get_mock_prediction, load_model_files, start_tgc, stop_tgc,
+    get_focus_prediction, get_mock_prediction, load_model_files, start_tgc, stop_tgc, write_csv,
 };
 use models::ml_data::ModelManager;
 use tauri::Manager;
@@ -77,6 +77,7 @@ pub fn run() {
             stop_tgc,
             get_focus_prediction,
             get_mock_prediction,
+            write_csv,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

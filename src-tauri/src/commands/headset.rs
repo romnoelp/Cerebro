@@ -18,10 +18,7 @@ const MODEL_NOT_LOADED: &str =
 /// Replaces any previously loaded instance — safe to call again to hot-swap a
 /// retrained model without restarting the app.
 #[tauri::command]
-pub fn load_model_files(
-    paths: ModelPaths,
-    model: State<ModelManagerState>,
-) -> Result<(), String> {
+pub fn load_model_files(paths: ModelPaths, model: State<ModelManagerState>) -> Result<(), String> {
     let manager = ModelManager::load(&paths)?;
     *model.lock().map_err(|e| e.to_string())? = Some(manager);
     Ok(())
@@ -60,10 +57,20 @@ pub fn get_focus_prediction(
     payload: EegPayload,
     model: State<ModelManagerState>,
 ) -> Result<FocusPrediction, String> {
-    model.lock().map_err(|e| e.to_string())?
+    model
+        .lock()
+        .map_err(|e| e.to_string())?
         .as_mut()
         .ok_or(MODEL_NOT_LOADED)?
         .infer(&payload)
+}
+
+/// Writes `content` to `path` on disk, creating or overwriting the file.
+/// Used by the frontend to persist a session's CSV after the save dialog
+/// resolves a destination path.
+#[tauri::command]
+pub fn write_csv(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
 /// Runs a synthetic payload through the full pipeline so focus/unfocus code
@@ -71,7 +78,9 @@ pub fn get_focus_prediction(
 #[tauri::command]
 pub fn get_mock_prediction(model: State<ModelManagerState>) -> Result<FocusPrediction, String> {
     let payload = mock_eeg_payload();
-    model.lock().map_err(|e| e.to_string())?
+    model
+        .lock()
+        .map_err(|e| e.to_string())?
         .as_mut()
         .ok_or(MODEL_NOT_LOADED)?
         .infer(&payload)

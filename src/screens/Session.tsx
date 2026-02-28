@@ -1,6 +1,8 @@
 import * as React from "react";
 import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import { sileo } from "sileo";
+import { type FocusPrediction } from "@/types";
 import { IconClockHour3, IconBrain, IconDatabase } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { EASE } from "@/lib/constants";
@@ -16,6 +18,7 @@ import { useSessionTimer } from "./session/hooks/useSessionTimer";
 import { useModelLoader } from "./session/hooks/useModelLoader";
 import { useCalibration } from "./session/hooks/useCalibration";
 import { useTgcConnection } from "./session/hooks/useTgcConnection";
+import { useSessionRecorder } from "./session/hooks/useSessionRecorder";
 import { StatCard } from "./session/components/StatCard";
 import { ModelManagementCard } from "./session/components/ModelManagementCard";
 import { SessionControlsCard } from "./session/components/SessionControlsCard";
@@ -37,9 +40,10 @@ const SessionScreen = () => {
     reset: resetTimer,
   } = useSessionTimer(isScanning);
   const { loadedModels, modelReady, handleLoadModel } = useModelLoader();
-  const { liveData, isConnected, poorSignalLevel } = useTgcConnection(
+  const { liveData, rawData, isConnected, poorSignalLevel } = useTgcConnection(
     isScanning || showCalibrationDialog,
   );
+  const recorder = useSessionRecorder();
   const {
     calibrationStep,
     showStartButton,
@@ -105,6 +109,23 @@ const SessionScreen = () => {
     if (shouldResetChart) setShouldResetChart(false);
   }, [shouldResetChart]);
 
+  // Record one row per accepted TGC packet while the session is active.
+  // Inference runs only when the model is loaded; otherwise the row is saved
+  // with label -1 so no EEG data is silently dropped.
+  React.useEffect(() => {
+    if (!isScanning || !rawData) return;
+
+    if (modelReady) {
+      invoke<FocusPrediction>("get_focus_prediction", { payload: rawData })
+        .then((pred) => recorder.record(rawData, pred))
+        .catch(() => recorder.record(rawData, undefined));
+    } else {
+      recorder.record(rawData, undefined);
+    }
+    // rawData reference changes on every new packet — that's the intended trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawData]);
+
   const signalMessage = !isConnected
     ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
     : "Headset connected but signal quality is poor. Adjust the headband and try again.";
@@ -125,6 +146,9 @@ const SessionScreen = () => {
       });
       if (!path) return;
 
+      await invoke("write_csv", { path, content: recorder.buildCsv() });
+
+      recorder.clear();
       resetTimer();
       setSubjectName("");
       setHasStarted(false);

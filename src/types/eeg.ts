@@ -19,3 +19,9 @@ export type TgcBandData = {
 };
 
 export type TgcStatus = "connected" | "disconnected";
+
+// Mirrors FocusPrediction in src-tauri/src/models/ml_data.rs.
+export type FocusPrediction = {
+  label: number;       // 0 = Unfocused, 1 = Focused, -1 = model not loaded
+  labelName: string;   // "Focused" | "Unfocused" | "N/A"
+};

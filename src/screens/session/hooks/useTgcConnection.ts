@@ -4,7 +4,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { type TgcBandData, type TgcStatus } from "@/types";
 
 interface UseTgcConnectionResult {
-  liveData: TgcBandData | undefined; // undefined when disconnected or signal is poor
+  liveData: TgcBandData | undefined; // normalized (%) for the chart
+  rawData: TgcBandData | undefined;  // absolute μV² values for CSV recording
   isConnected: boolean;
   poorSignalLevel: number; // 0 = clean, 200 = no contact
 }
@@ -39,6 +40,9 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
   const [liveData, setLiveData] = React.useState<TgcBandData | undefined>(
     undefined,
   );
+  const [rawData, setRawData] = React.useState<TgcBandData | undefined>(
+    undefined,
+  );
   const [isConnected, setIsConnected] = React.useState(false);
   const [poorSignalLevel, setPoorSignalLevel] = React.useState(200);
 
@@ -46,6 +50,7 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
     if (!active) {
       invoke("stop_tgc").catch(console.error);
       setLiveData(undefined);
+      setRawData(undefined);
       setIsConnected(false);
       setPoorSignalLevel(200);
       return;
@@ -61,6 +66,7 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
       const payload = event.payload;
       setPoorSignalLevel(payload.poorSignalLevel);
       if (payload.poorSignalLevel < 50) {
+        setRawData(payload);
         setLiveData(normalizeBandPowers(payload));
       }
     })
@@ -69,7 +75,10 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
 
     listen<TgcStatus>("tgc-status", (event) => {
       setIsConnected(event.payload === "connected");
-      if (event.payload === "disconnected") setLiveData(undefined);
+      if (event.payload === "disconnected") {
+        setLiveData(undefined);
+        setRawData(undefined);
+      }
     })
       .then((fn) => { unlistenStatus = fn; })
       .catch(console.error);
@@ -81,5 +90,5 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
     };
   }, [active]);
 
-  return { liveData, isConnected, poorSignalLevel };
+  return { liveData, rawData, isConnected, poorSignalLevel };
 }
