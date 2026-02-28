@@ -14,6 +14,7 @@ import {
   formatSamples,
   buildExportFilename,
 } from "./session/utils";
+import { useSessionStore } from "@/lib/useSessionStore";
 import { useSessionTimer } from "./session/hooks/useSessionTimer";
 import { useModelLoader } from "./session/hooks/useModelLoader";
 import { useCalibration } from "./session/hooks/useCalibration";
@@ -44,6 +45,7 @@ const SessionScreen = () => {
     isScanning || showCalibrationDialog,
   );
   const recorder = useSessionRecorder();
+  const addSession = useSessionStore((s) => s.addSession);
   const {
     calibrationStep,
     showStartButton,
@@ -151,7 +153,19 @@ const SessionScreen = () => {
       });
       if (!path) return;
 
-      await invoke("write_csv", { path, content: recorder.buildCsv() });
+      const summary = recorder.buildSummary(
+        subjectName,
+        elapsed,
+        path as string,
+      );
+
+      await invoke("save_session", {
+        csvPath: path,
+        csvContent: recorder.buildCsv(),
+        summary,
+      });
+
+      addSession(summary);
 
       recorder.clear();
       resetTimer();

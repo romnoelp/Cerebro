@@ -2,8 +2,11 @@ import { motion } from "motion/react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
 import { EASE } from "@/lib/constants";
+import { useSessionStore } from "@/lib/useSessionStore";
 
 const DashboardScreen = () => {
+  const sessions = useSessionStore((s) => s.sessions);
+
   return (
     <motion.div
       className="flex flex-1 flex-col min-h-0 overflow-hidden"
@@ -32,9 +35,9 @@ const DashboardScreen = () => {
               </span>
             </div>
           </div>
-          <SectionCards />
+          <SectionCards sessions={sessions} />
           <div className="px-4 lg:px-6">
-            <ChartAreaInteractive />
+            <ChartAreaInteractive sessions={sessions} />
           </div>
         </div>
       </div>

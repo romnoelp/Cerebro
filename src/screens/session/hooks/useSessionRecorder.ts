@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { type TgcBandData, type FocusPrediction } from "@/types";
+import { type TgcBandData, type FocusPrediction, type SessionSummary } from "@/types";
 
 // One row per accepted EEG packet (~1 Hz).
 interface CsvRow {
@@ -81,11 +81,43 @@ export function useSessionRecorder() {
     return [CSV_HEADER, ...rowsRef.current.map(rowToLine)].join("\n");
   }
 
+  /**
+   * Builds a compact SessionSummary from the accumulated rows.
+   * Call this just before export so the summary reflects the full session.
+   */
+  const buildSummary = (
+    subjectName: string,
+    durationSecs: number,
+    csvPath: string,
+  ): SessionSummary => {
+    const rows = rowsRef.current;
+    const count = rows.length || 1;
+    const meanOf = (key: keyof CsvRow): number =>
+      rows.reduce((sum, r) => sum + Number(r[key]), 0) / count;
+
+    return {
+      id: crypto.randomUUID(),
+      subjectName,
+      exportedAt: new Date().toISOString(),
+      csvPath,
+      sampleCount: rows.length,
+      durationSecs,
+      focusedCount: rows.filter((r) => r.focusLabel === 1).length,
+      unfocusedCount: rows.filter((r) => r.focusLabel === 0).length,
+      meanAlpha: (meanOf("lowAlpha") + meanOf("highAlpha")) / 2,
+      meanTheta: meanOf("theta"),
+      meanAttention: meanOf("attention"),
+      meanMeditation: meanOf("meditation"),
+      signalQualityPct:
+        (rows.filter((r) => r.poorSignalLevel === 0).length / count) * 100,
+    };
+  };
+
   /** Resets the recorder — call after a successful export. */
   const clear = () => {
     rowsRef.current = [];
     setRowCount(0);
   }
 
-  return { rowCount, record, buildCsv, clear };
+  return { rowCount, record, buildCsv, buildSummary, clear };
 }

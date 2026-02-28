@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use tauri::{AppHandle, State};
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager, State};
 
 use crate::{
     models::{
@@ -71,6 +72,66 @@ pub fn get_focus_prediction(
 #[tauri::command]
 pub fn write_csv(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+/// Compact summary of one recorded session. Mirrors SessionSummary in eeg.ts.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSummary {
+    pub id: String,
+    pub subject_name: String,
+    pub exported_at: String,
+    pub csv_path: String,
+    pub sample_count: u32,
+    pub duration_secs: f64,
+    pub focused_count: u32,
+    pub unfocused_count: u32,
+    pub mean_alpha: f64,
+    pub mean_theta: f64,
+    pub mean_attention: f64,
+    pub mean_meditation: f64,
+    pub signal_quality_pct: f64,
+}
+
+fn sessions_index_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("sessions.json"))
+}
+
+/// Writes the CSV then appends a summary entry to sessions.json.
+/// Atomic — the index is only updated after the CSV write succeeds.
+#[tauri::command]
+pub fn save_session(
+    app: AppHandle,
+    csv_path: String,
+    csv_content: String,
+    summary: SessionSummary,
+) -> Result<(), String> {
+    std::fs::write(&csv_path, csv_content).map_err(|e| e.to_string())?;
+
+    let index = sessions_index_path(&app)?;
+    let mut sessions: Vec<SessionSummary> = if index.exists() {
+        let raw = std::fs::read_to_string(&index).map_err(|e| e.to_string())?;
+        serde_json::from_str(&raw).unwrap_or_default()
+    } else {
+        vec![]
+    };
+
+    sessions.push(summary);
+    let serialized = serde_json::to_string_pretty(&sessions).map_err(|e| e.to_string())?;
+    std::fs::write(&index, serialized).map_err(|e| e.to_string())
+}
+
+/// Returns all saved session summaries, or an empty list on first launch.
+#[tauri::command]
+pub fn load_sessions(app: AppHandle) -> Result<Vec<SessionSummary>, String> {
+    let index = sessions_index_path(&app)?;
+    if !index.exists() {
+        return Ok(vec![]);
+    }
+    let raw = std::fs::read_to_string(&index).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
 }
 
 /// Runs a synthetic payload through the full pipeline so focus/unfocus code

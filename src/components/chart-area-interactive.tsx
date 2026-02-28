@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { type SessionSummary } from "@/types";
 
 export const description = "EEG band power over time";
 
-const chartData = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _REMOVED_MOCK_DATA = [
   { date: "2024-04-01", alpha: 42, theta: 28 },
   { date: "2024-04-02", alpha: 35, theta: 31 },
   { date: "2024-04-03", alpha: 50, theta: 24 },
@@ -135,7 +137,11 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function ChartAreaInteractive() {
+export function ChartAreaInteractive({
+  sessions,
+}: {
+  sessions: SessionSummary[];
+}) {
   const isMobile = useIsMobile();
   const [timeRange, setTimeRange] = React.useState("90d");
 
@@ -145,15 +151,24 @@ export function ChartAreaInteractive() {
     }
   }, [isMobile]);
 
+  // One point per session — date from exportedAt, values from pre-computed means
+  const chartData = React.useMemo(
+    () =>
+      sessions.map((s) => ({
+        date: s.exportedAt.slice(0, 10), // "YYYY-MM-DD"
+        alpha: Math.round(s.meanAlpha * 10) / 10,
+        theta: Math.round(s.meanTheta * 10) / 10,
+        subject: s.subjectName,
+      })),
+    [sessions],
+  );
+
   const filteredData = chartData.filter((item) => {
     const date = new Date(item.date);
-    const referenceDate = new Date("2024-06-30");
+    const referenceDate = new Date();
     let daysToSubtract = 90;
-    if (timeRange === "30d") {
-      daysToSubtract = 30;
-    } else if (timeRange === "7d") {
-      daysToSubtract = 7;
-    }
+    if (timeRange === "30d") daysToSubtract = 30;
+    else if (timeRange === "7d") daysToSubtract = 7;
     const startDate = new Date(referenceDate);
     startDate.setDate(startDate.getDate() - daysToSubtract);
     return date >= startDate;
@@ -165,7 +180,9 @@ export function ChartAreaInteractive() {
         <CardTitle>EEG Band Power</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            Alpha &amp; Theta power (μV²) over the last 3 months
+            {sessions.length === 0
+              ? "No sessions recorded yet — export a session to populate"
+              : `Alpha & Theta power (μV²) across ${sessions.length} session${sessions.length === 1 ? "" : "s"}`}
           </span>
           <span className="@[540px]/card:hidden">Alpha &amp; Theta power</span>
         </CardDescription>
@@ -202,9 +219,20 @@ export function ChartAreaInteractive() {
         </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+        {filteredData.length === 0 && (
+          <div className="flex aspect-auto h-52 w-full items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              {sessions.length === 0
+                ? "Export a session to see band trends here."
+                : "No sessions in the selected time range."}
+            </p>
+          </div>
+        )}
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-52 w-full">
+          className={
+            filteredData.length === 0 ? "hidden" : "aspect-auto h-52 w-full"
+          }>
           <AreaChart data={filteredData}>
             <defs>
               <linearGradient id="fillAlpha" x1="0" y1="0" x2="0" y2="1">
@@ -251,11 +279,16 @@ export function ChartAreaInteractive() {
               cursor={false}
               content={
                 <ChartTooltipContent
-                  labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    });
+                  labelFormatter={(value, payload) => {
+                    const subject = payload?.[0]?.payload?.subject;
+                    const dateStr = new Date(value).toLocaleDateString(
+                      "en-US",
+                      {
+                        month: "short",
+                        day: "numeric",
+                      },
+                    );
+                    return subject ? `${dateStr} · ${subject}` : dateStr;
                   }}
                   indicator="dot"
                 />

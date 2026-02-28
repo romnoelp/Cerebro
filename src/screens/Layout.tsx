@@ -15,6 +15,7 @@ import {
   SidebarProvider,
   SidebarInset,
 } from "@/components/animate-ui/components/radix/sidebar";
+import { useSessionStore } from "@/lib/useSessionStore";
 
 const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
   session: SessionScreen,
@@ -24,6 +25,11 @@ const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
 const Layout = () => {
   const [activeScreen, setActiveScreen] = React.useState<AppFile>("dashboard");
   const { resolvedTheme } = useTheme();
+  const loadSessions = useSessionStore((s) => s.loadSessions);
+
+  React.useEffect(() => {
+    loadSessions().catch(console.error);
+  }, [loadSessions]);
 
   const isLiveScreen = LIVE_SCREENS.includes(activeScreen);
   const ActiveScreen = SCREEN_COMPONENTS[activeScreen];
