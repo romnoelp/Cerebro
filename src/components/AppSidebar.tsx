@@ -14,8 +14,6 @@ import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { type AppFile } from "@/types";
 
-export type { AppFile } from "@/types";
-
 interface AppSidebarProps extends Omit<
   React.ComponentProps<typeof Sidebar>,
   "onSelect"

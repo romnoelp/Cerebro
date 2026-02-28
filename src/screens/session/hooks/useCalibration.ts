@@ -1,11 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { calibrationSteps, stepDuration } from "../constants";
 
-export const useCalibration = (
-  showCalibrationDialog: boolean,
-  isConnected: boolean,
-  poorSignalLevel: number,
-) => {
+interface UseCalibrationConfig {
+  active: boolean;
+  isConnected: boolean;
+  poorSignalLevel: number;
+}
+
+export const useCalibration = ({
+  active,
+  isConnected,
+  poorSignalLevel,
+}: UseCalibrationConfig) => {
   const [calibrationStep, setCalibrationStep] = useState(0);
   const [showStartButton, setShowStartButton] = useState(false);
   const [signalFailed, setSignalFailed] = useState(false);
@@ -21,9 +27,8 @@ export const useCalibration = (
   }, [poorSignalLevel]);
 
   useEffect(() => {
-    if (!showCalibrationDialog || signalFailed) return;
+    if (!active || signalFailed) return;
 
-    // Step 1 = "Checking signal integrity" — gate on actual headset state.
     if (calibrationStep === 1) {
       const t = setTimeout(() => {
         if (!isConnectedRef.current || poorSignalLevelRef.current >= 50) {
@@ -45,7 +50,7 @@ export const useCalibration = (
       const t = setTimeout(() => setShowStartButton(true), stepDuration);
       return () => clearTimeout(t);
     }
-  }, [showCalibrationDialog, calibrationStep, signalFailed]);
+  }, [active, calibrationStep, signalFailed]);
 
   const reset = () => {
     setCalibrationStep(0);

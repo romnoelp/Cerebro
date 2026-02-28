@@ -3,7 +3,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import { cn } from "@/lib/utils";
-import { calibrationSteps, ease } from "../constants";
+import { calibrationSteps } from "../constants";
+import { EASE as ease } from "@/lib/constants";
 
 interface CalibrationDialogProps {
   open: boolean;

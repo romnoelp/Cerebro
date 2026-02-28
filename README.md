@@ -116,12 +116,12 @@ src/
 │   ├── Dashboard.tsx           # Brain activity overview & aggregate metrics
 │   ├── Session.tsx             # Live EEG acquisition & session management
 │   └── session/
-│       ├── constants.ts        # Model definitions, calibration steps, animation config
-│       ├── utils.ts            # formatElapsed, formatSamples helpers
+│       ├── constants.ts        # Model definitions, calibration steps
+│       ├── utils.ts            # formatElapsed, formatSamples, buildExportFilename helpers
 │       ├── hooks/
-│       │   ├── useSessionTimer.tsx      # Elapsed time + sample counter (512 Hz)
-│       │   ├── useModelLoader.tsx       # File-picker model loading & validation
-│       │   ├── useCalibration.tsx       # Step-through calibration dialog state
+│       │   ├── useSessionTimer.ts       # Elapsed time + sample counter (512 Hz)
+│       │   ├── useModelLoader.ts        # File-picker model loading & validation
+│       │   ├── useCalibration.ts        # Step-through calibration dialog state
 │       │   └── useTgcConnection.ts      # TGC start/stop, tgc-data listener, normalization
 │       └── components/
 │           ├── StatCard.tsx             # Stat strip card (elapsed, samples, models)
@@ -135,8 +135,11 @@ src/
 │   ├── chart-area-interactive.tsx  # Historical area chart (Dashboard)
 │   └── section-cards.tsx           # Dashboard metric cards
 ├── types/
-│   └── index.ts                # TgcBandData, TgcStatus, and shared types
+│   ├── ui.ts                   # Screen, AppFile (navigation & UI types)
+│   ├── eeg.ts                  # TgcBandData, TgcStatus (headset & signal types)
+│   └── index.ts                # Barrel re-export
 └── lib/
+    ├── constants.ts            # Shared EASE animation curve
     └── file-contents.ts        # Screen registry and live/code view routing
 
 src-tauri/src/

@@ -1,6 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
+import { EASE } from "@/lib/constants";
 import AppSidebar from "@/components/AppSidebar";
 import CodeView from "@/components/CodeView";
 import { FILE_LABELS, FILE_SOURCE, LIVE_SCREENS } from "@/lib/file-contents";
@@ -15,9 +16,9 @@ import {
   SidebarInset,
 } from "@/components/animate-ui/components/radix/sidebar";
 
-const LIVE_COMPONENTS: Record<string, React.ReactNode> = {
-  session: <SessionScreen />,
-  dashboard: <DashboardScreen />,
+const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
+  session: SessionScreen,
+  dashboard: DashboardScreen,
 };
 
 const Layout = () => {
@@ -25,6 +26,7 @@ const Layout = () => {
   const { resolvedTheme } = useTheme();
 
   const isLive = LIVE_SCREENS.includes(selected);
+  const LiveComponent = SCREEN_COMPONENTS[selected];
 
   return (
     <motion.div
@@ -33,7 +35,7 @@ const Layout = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+      transition={{ duration: 0.6, ease: EASE }}>
       <SidebarProvider
         style={
           {
@@ -42,10 +44,8 @@ const Layout = () => {
           } as React.CSSProperties
         }
         className="h-screen overflow-hidden">
-        {/* Sidebar — state persists across file changes */}
         <AppSidebar selected={selected} onSelect={setSelected} />
 
-        {/* Main content */}
         <SidebarInset className="relative overflow-hidden bg-transparent!">
           <StarsBackground
             starColor={resolvedTheme === "dark" ? "#FFF" : "#000"}
@@ -58,7 +58,7 @@ const Layout = () => {
           {isLive ? (
             <AnimatePresence mode="wait">
               <React.Fragment key={selected}>
-                {LIVE_COMPONENTS[selected]}
+                <LiveComponent />
               </React.Fragment>
             </AnimatePresence>
           ) : (

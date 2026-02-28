@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
+import { EASE } from "@/lib/constants";
 
 const DashboardScreen = () => {
   return (
@@ -9,7 +10,7 @@ const DashboardScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
+      transition={{ duration: 0.3, ease: EASE }}>
       <div className="@container/main flex flex-col gap-2">
         <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2">
           {/* Page header */}

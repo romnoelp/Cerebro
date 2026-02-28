@@ -27,6 +27,5 @@ export const calibrationSteps = [
 ];
 
 export const stepDuration = 1400;
-export const ease = [0.16, 1, 0.3, 1] as const;
 
 export type ModelKey = (typeof requiredModels)[number]["key"];

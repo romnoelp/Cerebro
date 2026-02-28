@@ -15,7 +15,6 @@ const TGC_AUTH: &str =
     r#"{"appName":"Cerebro","appKey":"0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d"}"#;
 
 // Mirrors the TGC `eegPower` JSON object.
-// TGC names the 41–49.75 Hz band "highGamma"; remapped to `midGamma` on output.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct RawEegPower {
@@ -29,7 +28,7 @@ struct RawEegPower {
     high_gamma: u32,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 struct RawESense {
     attention: Option<u8>,
@@ -76,7 +75,26 @@ impl Default for TgcState {
     }
 }
 
+impl TgcState {
+    // Specialist: reports whether the reader thread is alive.
+    fn is_running(&self) -> bool {
+        self.thread
+            .as_ref()
+            .map(|t| !t.is_finished())
+            .unwrap_or(false)
+    }
+}
+
 type TgcStateGuard = Mutex<TgcState>;
+
+// Specialist: configures an established stream — sets read timeout, sends auth,
+// and announces the connection. Panics if the stream cannot be cloned.
+fn handshake(stream: &TcpStream, app: &AppHandle) {
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+    let mut writer = stream.try_clone().expect("clone stream for write");
+    let _ = writeln!(writer, "{}", TGC_AUTH);
+    let _ = app.emit("tgc-status", "connected");
+}
 
 // Retries TCP connect every 2s until successful or stop_flag is set.
 fn try_connect(app: &AppHandle, stop_flag: &Arc<AtomicBool>) -> Option<TcpStream> {
@@ -99,10 +117,7 @@ fn parse_packet(line: &str) -> Option<EegPayload> {
     }
     let packet: TgcPacket = serde_json::from_str(line).ok()?;
     let poor_signal_level = packet.poor_signal_level.unwrap_or(200);
-    let sense = packet.e_sense.unwrap_or(RawESense {
-        attention: None,
-        meditation: None,
-    });
+    let sense = packet.e_sense.unwrap_or_default();
     let eeg = packet.eeg_power?;
     Some(EegPayload {
         delta: eeg.delta,
@@ -124,11 +139,7 @@ fn run_tgc_reader(app: AppHandle, stop_flag: Arc<AtomicBool>) {
         return;
     };
 
-    // 500ms read timeout so the loop can check stop_flag while idle.
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-    let mut writer = stream.try_clone().expect("clone stream for write");
-    let _ = writeln!(writer, "{}", TGC_AUTH);
-    let _ = app.emit("tgc-status", "connected");
+    handshake(&stream, &app);
 
     for result in BufReader::new(stream).lines() {
         if stop_flag.load(Ordering::Relaxed) {
@@ -154,12 +165,7 @@ fn run_tgc_reader(app: AppHandle, stop_flag: Arc<AtomicBool>) {
 fn start_tgc(app: AppHandle, state: State<TgcStateGuard>) -> Result<(), String> {
     let mut guard = state.lock().map_err(|e| e.to_string())?;
 
-    if guard
-        .thread
-        .as_ref()
-        .map(|t| !t.is_finished())
-        .unwrap_or(false)
-    {
+    if guard.is_running() {
         return Ok(());
     }
 

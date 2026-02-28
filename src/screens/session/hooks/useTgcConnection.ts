@@ -9,6 +9,28 @@ interface UseTgcConnectionResult {
   poorSignalLevel: number; // 0 = clean, 200 = no contact
 }
 
+// Specialist: converts raw μV² band powers to relative percentages (0–100).
+function normalizeBandPowers(payload: TgcBandData): TgcBandData {
+  const {
+    delta, theta, lowAlpha, highAlpha,
+    lowBeta, highBeta, lowGamma, midGamma,
+  } = payload;
+  const total =
+    delta + theta + lowAlpha + highAlpha +
+    lowBeta + highBeta + lowGamma + midGamma || 1;
+  return {
+    ...payload,
+    delta:     Math.round((delta     / total) * 100),
+    theta:     Math.round((theta     / total) * 100),
+    lowAlpha:  Math.round((lowAlpha  / total) * 100),
+    highAlpha: Math.round((highAlpha / total) * 100),
+    lowBeta:   Math.round((lowBeta   / total) * 100),
+    highBeta:  Math.round((highBeta  / total) * 100),
+    lowGamma:  Math.round((lowGamma  / total) * 100),
+    midGamma:  Math.round((midGamma  / total) * 100),
+  };
+}
+
 /**
  * Starts/stops the Rust TGC reader based on `active` and exposes normalized
  * band power data via `liveData`. Packets with poorSignalLevel ≥ 50 are dropped.
@@ -22,7 +44,7 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
 
   React.useEffect(() => {
     if (!active) {
-        invoke("stop_tgc").catch(console.error);
+      invoke("stop_tgc").catch(console.error);
       setLiveData(undefined);
       setIsConnected(false);
       setPoorSignalLevel(200);
@@ -34,30 +56,12 @@ export function useTgcConnection(active: boolean): UseTgcConnectionResult {
     let unlistenData: UnlistenFn | undefined;
     let unlistenStatus: UnlistenFn | undefined;
 
-    // ~1 Hz from TGAM chip; normalize raw band powers to relative % (0–100).
+    // ~1 Hz from TGAM chip; delivers raw band powers, normalized on acceptance.
     listen<TgcBandData>("tgc-data", (event) => {
       const payload = event.payload;
       setPoorSignalLevel(payload.poorSignalLevel);
       if (payload.poorSignalLevel < 50) {
-        const {
-          delta, theta, lowAlpha, highAlpha,
-          lowBeta, highBeta, lowGamma, midGamma,
-        } = payload;
-        const total =
-          delta + theta + lowAlpha + highAlpha +
-          lowBeta + highBeta + lowGamma + midGamma || 1;
-        const normalized: TgcBandData = {
-          ...payload,
-          delta:     Math.round((delta     / total) * 100),
-          theta:     Math.round((theta     / total) * 100),
-          lowAlpha:  Math.round((lowAlpha  / total) * 100),
-          highAlpha: Math.round((highAlpha / total) * 100),
-          lowBeta:   Math.round((lowBeta   / total) * 100),
-          highBeta:  Math.round((highBeta  / total) * 100),
-          lowGamma:  Math.round((lowGamma  / total) * 100),
-          midGamma:  Math.round((midGamma  / total) * 100),
-        };
-        setLiveData(normalized);
+        setLiveData(normalizeBandPowers(payload));
       }
     })
       .then((fn) => { unlistenData = fn; })

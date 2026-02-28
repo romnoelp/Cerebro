@@ -3,10 +3,15 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { sileo } from "sileo";
 import { IconClockHour3, IconBrain, IconDatabase } from "@tabler/icons-react";
 import { motion } from "motion/react";
+import { EASE } from "@/lib/constants";
 import { ChartLineInteractive } from "@/components/chart-line-interactive";
 import { cn } from "@/lib/utils";
 import { requiredModels } from "./session/constants";
-import { formatElapsed, formatSamples } from "./session/utils";
+import {
+  formatElapsed,
+  formatSamples,
+  buildExportFilename,
+} from "./session/utils";
 import { useSessionTimer } from "./session/hooks/useSessionTimer";
 import { useModelLoader } from "./session/hooks/useModelLoader";
 import { useCalibration } from "./session/hooks/useCalibration";
@@ -40,10 +45,13 @@ const SessionScreen = () => {
     showStartButton,
     signalFailed,
     reset: resetCalibration,
-  } = useCalibration(showCalibrationDialog, isConnected, poorSignalLevel);
+  } = useCalibration({
+    active: showCalibrationDialog,
+    isConnected,
+    poorSignalLevel,
+  });
 
   const handleStartScanning = () => {
-    // If already started (paused), just resume
     if (hasStarted) {
       setIsScanning(true);
       sileo.success({
@@ -51,7 +59,6 @@ const SessionScreen = () => {
         description: `Live EEG acquisition for ${subjectName} resumed.`,
       });
     } else {
-      // Fresh start - show name dialog
       setShowNameDialog(true);
     }
   };
@@ -94,12 +101,13 @@ const SessionScreen = () => {
     });
   };
 
-  // Reset chart flag after it's been consumed
   React.useEffect(() => {
-    if (shouldResetChart) {
-      setShouldResetChart(false);
-    }
+    if (shouldResetChart) setShouldResetChart(false);
   }, [shouldResetChart]);
+
+  const signalMessage = !isConnected
+    ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
+    : "Headset connected but signal quality is poor. Adjust the headband and try again.";
 
   const handleStopScanning = () => {
     setIsScanning(false);
@@ -111,20 +119,12 @@ const SessionScreen = () => {
 
   const handleExport = async () => {
     try {
-      const now = new Date();
-      const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
-      const timeStr = now.toTimeString().split(" ")[0].replace(/:/g, "-"); // HH-MM-SS
-      const filename = subjectName.trim()
-        ? `${subjectName.trim().replace(/\s+/g, "_")}_${dateStr}_${timeStr}.csv`
-        : `session_${dateStr}_${timeStr}.csv`;
-
       const path = await save({
         filters: [{ name: "CSV Data", extensions: ["csv"] }],
-        defaultPath: filename,
+        defaultPath: buildExportFilename(subjectName),
       });
       if (!path) return;
 
-      // Clear all data after successful export
       resetTimer();
       setSubjectName("");
       setHasStarted(false);
@@ -149,10 +149,9 @@ const SessionScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
+      transition={{ duration: 0.3, ease: EASE }}>
       <div className="@container/main flex flex-col gap-2">
         <div className="flex flex-col gap-2 py-2 pb-2">
-          {/* Page header */}
           <div className="flex items-end justify-between px-4 lg:px-6">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-semibold tracking-tight">Session</h1>
@@ -161,7 +160,6 @@ const SessionScreen = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Headset status */}
               {isScanning && (
                 <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
                   <span
@@ -183,7 +181,7 @@ const SessionScreen = () => {
                   </span>
                 </div>
               )}
-              {/* Scanning status */}
+
               <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/20 backdrop-blur-sm px-3 py-1">
                 <span className="relative flex h-1.5 w-1.5">
                   {isScanning && (
@@ -203,25 +201,19 @@ const SessionScreen = () => {
             </div>
           </div>
 
-          {/* Stat strip */}
           <div className="grid grid-cols-3 gap-3 px-4 lg:px-6">
-            {/* Session Time */}
             <StatCard
               icon={<IconClockHour3 className="size-3.5" />}
               label="Elapsed"
               value={formatElapsed(elapsed)}
               isActive={isScanning}
             />
-
-            {/* Samples */}
             <StatCard
               icon={<IconDatabase className="size-3.5" />}
               label="Samples"
               value={formatSamples(sampleCount)}
               isActive={isScanning}
             />
-
-            {/* Models loaded */}
             <StatCard
               icon={<IconBrain className="size-3.5" />}
               label="Models"
@@ -238,9 +230,7 @@ const SessionScreen = () => {
             />
           </div>
 
-          {/* Main content: chart + controls */}
           <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 @3xl/main:grid-cols-[1fr_320px] @3xl/main:items-start">
-            {/* Left — Live EEG chart */}
             <ChartLineInteractive
               isRunning={isScanning}
               shouldReset={shouldResetChart}
@@ -248,8 +238,6 @@ const SessionScreen = () => {
               liveData={liveData}
               className="h-full"
             />
-
-            {/* Right — Model management + session controls */}
             <div className="flex flex-col gap-3 h-full">
               <ModelManagementCard
                 loadedModels={loadedModels}
@@ -270,7 +258,6 @@ const SessionScreen = () => {
         </div>
       </div>
 
-      {/* Subject Name Dialog */}
       <SubjectNameDialog
         open={showNameDialog}
         subjectName={subjectName}
@@ -282,17 +269,12 @@ const SessionScreen = () => {
         onCancel={handleCancelSession}
       />
 
-      {/* Calibration Dialog */}
       <CalibrationDialog
         open={showCalibrationDialog}
         calibrationStep={calibrationStep}
         showStartButton={showStartButton}
         signalFailed={signalFailed}
-        signalMessage={
-          !isConnected
-            ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
-            : "Headset connected but signal quality is poor. Adjust the headband and try again."
-        }
+        signalMessage={signalMessage}
         onOpenChange={(open) => {
           if (!open) handleCancelSession();
         }}

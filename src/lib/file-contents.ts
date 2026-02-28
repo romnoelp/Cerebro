@@ -1,5 +1,6 @@
-export type { AppFile } from '../types';
 import { type AppFile } from '../types';
+
+export type { AppFile } from '../types';
 
 export const FILE_LABELS: Record<AppFile, string> = {
   session: 'Session',
