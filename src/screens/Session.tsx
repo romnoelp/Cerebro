@@ -25,6 +25,7 @@ import { ModelManagementCard } from "./session/components/ModelManagementCard";
 import { SessionControlsCard } from "./session/components/SessionControlsCard";
 import { SubjectNameDialog } from "./session/components/SubjectNameDialog";
 import { CalibrationDialog } from "./session/components/CalibrationDialog";
+import { DisconnectDialog } from "./session/components/DisconnectDialog";
 
 const SessionScreen = () => {
   const [isScanning, setIsScanning] = React.useState(false);
@@ -34,6 +35,10 @@ const SessionScreen = () => {
   const [showCalibrationDialog, setShowCalibrationDialog] =
     React.useState(false);
   const [shouldResetChart, setShouldResetChart] = React.useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = React.useState(false);
+  // Tracks whether the headset was connected at any point during this scan
+  // so we only fire the disconnect dialog on mid-session drops, not on startup.
+  const wasConnectedRef = React.useRef(false);
 
   const {
     elapsed,
@@ -111,6 +116,21 @@ const SessionScreen = () => {
     if (shouldResetChart) setShouldResetChart(false);
   }, [shouldResetChart]);
 
+  // Track when the headset first connects during an active scan.
+  React.useEffect(() => {
+    if (isScanning && isConnected) {
+      wasConnectedRef.current = true;
+    }
+  }, [isScanning, isConnected]);
+
+  // Detect mid-session disconnect — only fires if headset was previously connected.
+  React.useEffect(() => {
+    if (isScanning && !isConnected && wasConnectedRef.current) {
+      setIsScanning(false);
+      setShowDisconnectDialog(true);
+    }
+  }, [isScanning, isConnected]);
+
   // Runs inference when the model is ready; records label -1 when it is not,
   // so no EEG packet is silently dropped.
   const recordEegPacket = (eegPayload: TgcBandData) => {
@@ -143,6 +163,55 @@ const SessionScreen = () => {
       title: "Scanning paused",
       description: "Signal acquisition has been paused. Click Start to resume.",
     });
+  };
+
+  const handleDisconnectSaveAndEnd = async () => {
+    setShowDisconnectDialog(false);
+    wasConnectedRef.current = false;
+    if (recorder.rowCount === 0) {
+      // Nothing to save — just reset.
+      recorder.clear();
+      resetTimer();
+      setSubjectName("");
+      setHasStarted(false);
+      setShouldResetChart(true);
+      return;
+    }
+    try {
+      const path = await save({
+        filters: [{ name: "CSV Data", extensions: ["csv"] }],
+        defaultPath: buildExportFilename(subjectName),
+      });
+      if (!path) return;
+
+      const summary = recorder.buildSummary(
+        subjectName,
+        elapsed,
+        path as string,
+      );
+      await invoke("save_session", {
+        csvPath: path,
+        csvContent: recorder.buildCsv(),
+        summary,
+      });
+      addSession(summary);
+
+      recorder.clear();
+      resetTimer();
+      setSubjectName("");
+      setHasStarted(false);
+      setShouldResetChart(true);
+
+      sileo.success({
+        title: "Session saved",
+        description: `Saved to ${(path as string).split(/[\\/]/).pop()}.`,
+      });
+    } catch {
+      sileo.error({
+        title: "Export failed",
+        description: "An error occurred while saving the file.",
+      });
+    }
   };
 
   const handleExport = async () => {
@@ -328,6 +397,12 @@ const SessionScreen = () => {
         onRetry={handleRetryCalibration}
         onComplete={handleCalibrationComplete}
         onCancel={handleCancelSession}
+      />
+
+      <DisconnectDialog
+        open={showDisconnectDialog}
+        sampleCount={recorder.rowCount}
+        onSaveAndEnd={handleDisconnectSaveAndEnd}
       />
     </motion.div>
   );
