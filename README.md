@@ -56,7 +56,6 @@ Exposes these Tauri commands (registered in `lib.rs`):
 | `stop_tgc`             | Sets the thread stop flag; thread exits within 500 ms               |
 | `load_model_files`     | Loads ONNX model + scaler JSON, hot-swappable without restart       |
 | `get_focus_prediction` | Runs one EEG packet through the full inference pipeline             |
-| `get_mock_prediction`  | Runs a synthetic packet; useful when no headset is connected        |
 | `save_session`         | Writes session CSV to disk and appends a summary to `sessions.json` |
 | `load_sessions`        | Returns all saved `SessionSummary` records from `sessions.json`     |
 
@@ -161,8 +160,8 @@ src/
 src-tauri/src/
 ├── lib.rs                      # App state setup + plugin/command registration
 ├── commands/
-│   └── headset.rs              # load_model_files, start_tgc, stop_tgc, get_focus_prediction,
-│                               # write_csv, save_session, load_sessions, get_mock_prediction
+│   └── headset.rs              # load_model_files, start_tgc, stop_tgc,
+│                               # get_focus_prediction, save_session, load_sessions
 ├── models/
 │   ├── ml_data.rs              # ModelManager (ONNX inference, feature extraction, normalisation)
 │   └── tgc_data.rs             # EegPayload struct (mirrors TgcBandData on the frontend)
