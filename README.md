@@ -6,25 +6,27 @@ An undergraduate thesis project exploring EEG-based focus classification in acad
 
 ## Overview
 
-Cerebro is the software component of a thesis investigating whether EEG signals can reliably classify student focus states during various academic tasks. It connects to a NeuroSky MindWave Mobile 2 headset via the ThinkGear Connector (TGC), streams all 8 TGAM band powers in real time through a Rust TCP bridge, and exports annotated session data per subject.
+Cerebro is the software component of a thesis investigating whether EEG signals can reliably classify student focus states during various academic tasks. It connects to a NeuroSky MindWave Mobile 2 headset via the ThinkGear Connector (TGC), streams all 8 TGAM band powers in real time through a Rust TCP bridge, runs on-device focus classification using a unified TCN+DDQN ONNX model, and exports annotated session data per subject.
 
-The headset connection pipeline is fully implemented. The UI, session flow, model loading, and export pipeline are complete and ready. On-device model inference (TCN+DDQN) is the remaining integration step.
+The full pipeline is implemented end-to-end: headset connection, real-time ONNX inference, session recording, CSV export, and cross-session Dashboard persistence.
 
 ---
 
 ## Tech Stack
 
-| Layer           | Technology                   |
-| --------------- | ---------------------------- |
-| Desktop runtime | Tauri v2 (Rust)              |
-| Frontend        | React 19 + TypeScript + Vite |
-| Styling         | Tailwind CSS v4              |
-| Charts          | Recharts                     |
-| Animations      | Motion (Framer Motion v12)   |
-| Notifications   | Sileo                        |
-| UI primitives   | Radix UI, shadcn/ui          |
-| File dialogs    | `@tauri-apps/plugin-dialog`  |
-| EEG bridge      | ThinkGear Connector (TCP)    |
+| Layer           | Technology                      |
+| --------------- | ------------------------------- |
+| Desktop runtime | Tauri v2 (Rust)                 |
+| Frontend        | React 19 + TypeScript + Vite    |
+| Styling         | Tailwind CSS v4                 |
+| Charts          | Recharts                        |
+| Animations      | Motion (Framer Motion v12)      |
+| Notifications   | Sileo                           |
+| UI primitives   | Radix UI, shadcn/ui             |
+| File dialogs    | `@tauri-apps/plugin-dialog`     |
+| EEG bridge      | ThinkGear Connector (TCP)       |
+| ML inference    | ONNX Runtime (`ort` v2.0, Rust) |
+| State mgmt      | Zustand                         |
 
 ---
 
@@ -37,23 +39,28 @@ Cerebro communicates with the NeuroSky MindWave Mobile 2 through the **ThinkGear
 ```
 MindWave Mobile 2  →  Bluetooth  →  ThinkGear Connector (localhost:13854)
                                            ↓  TCP / newline-delimited JSON
-                                    Rust TGC bridge (lib.rs)
+                                    Rust TGC bridge (networking/tgc_reader.rs)
                                            ↓  Tauri IPC event  (tgc-data)
                                     useTgcConnection hook
                                            ↓
                                     Live EEG chart (8 bands)
 ```
 
-### Rust bridge (`src-tauri/src/lib.rs`)
+### Rust bridge (`src-tauri/src/commands/headset.rs`, `networking/tgc_reader.rs`)
 
-Exposes two Tauri commands:
+Exposes these Tauri commands (registered in `lib.rs`):
 
-| Command     | Effect                                                         |
-| ----------- | -------------------------------------------------------------- |
-| `start_tgc` | Spawns a background thread that connects to TGC and reads data |
-| `stop_tgc`  | Sets the thread stop flag; thread exits within 500 ms          |
+| Command                | Effect                                                              |
+| ---------------------- | ------------------------------------------------------------------- |
+| `start_tgc`            | Spawns a background thread that connects to TGC and reads data      |
+| `stop_tgc`             | Sets the thread stop flag; thread exits within 500 ms               |
+| `load_model_files`     | Loads ONNX model + scaler JSON, hot-swappable without restart       |
+| `get_focus_prediction` | Runs one EEG packet through the full inference pipeline             |
+| `get_mock_prediction`  | Runs a synthetic packet; useful when no headset is connected        |
+| `save_session`         | Writes session CSV to disk and appends a summary to `sessions.json` |
+| `load_sessions`        | Returns all saved `SessionSummary` records from `sessions.json`     |
 
-The thread:
+The thread (`networking/tgc_reader.rs`):
 
 1. Opens a TCP connection to `127.0.0.1:13854`, retrying every 2 s on failure.
 2. Sends the authorization JSON (`appName` / `appKey`).
@@ -87,7 +94,7 @@ Raw band powers are absolute integer values. The hook normalizes them to **relat
 ### Setup (per session)
 
 1. Power on the headset and pair it via Windows Bluetooth settings.
-2. Launch `ThinkGear Connector.exe` — it auto-detects the COM port and starts the TCP server.
+2. ThinkGear Connector launches automatically on Windows boot and starts the TCP server.
 3. Launch Cerebro (`pnpm tauri dev`).
 4. Navigate to the Session screen and click **Start** — the Rust bridge connects automatically.
 
@@ -95,15 +102,21 @@ Raw band powers are absolute integer values. The hook normalizes them to **relat
 
 ## ML Models
 
-Three model files must be loaded before a session can begin:
+Two model files must be loaded before a session can begin:
 
-| File                      | Role                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ddqn_best_checkpoint.pt` | DDQN Policy Model — Deep Double Q-Network trained to classify focus/unfocus states from EEG features   |
-| `tcn_best_checkpoint.pt`  | TCN Feature Extractor — Temporal Convolutional Network that encodes raw EEG band power time series     |
-| `scaler.pkl`              | Signal Scaler — preprocessing scaler fitted on the thesis dataset, applied to raw EEG before inference |
+| File                   | Role                                                                                                                          |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `cerebro_unified.onnx` | Unified TCN+DDQN ONNX export — the full TCN feature extractor + DDQN policy head compiled into a single ONNX inference graph  |
+| `scaler_params.json`   | Signal Scaler — StandardScaler mean/scale parameters (JSON) fitted on the thesis dataset, applied to raw EEG before inference |
 
-Model files were trained as part of the thesis research and are stored in the `models/` directory. They are loaded at runtime via the file picker. The app validates filenames against the expected list and rejects unrecognized files.
+Model files were trained as part of the thesis research. They are loaded at runtime via the file picker. The app validates filenames against the expected list and rejects unrecognized files.
+
+Inference runs **natively in Rust** using [ONNX Runtime](https://onnxruntime.ai/) (`ort` crate with `download-binaries`). No Python interpreter or sidecar process is required. The Rust `ModelManager` in `src-tauri/src/models/ml_data.rs` handles:
+
+1. Loading the ONNX session and parsing the scaler JSON on startup.
+2. Extracting an 11-feature vector from each raw EEG packet (8 relative band powers + β/θ ratio + α/β ratio + temporal Δdelta).
+3. Normalising with the loaded scaler parameters (sklearn `StandardScaler.transform` logic).
+4. Running the ONNX session and returning a `FocusPrediction` (`label`: 0/1, `labelName`: "Focused"/"Unfocused").
 
 ---
 
@@ -113,14 +126,15 @@ Model files were trained as part of the thesis research and are stored in the `m
 src/
 ├── screens/
 │   ├── Layout.tsx              # Root layout: sidebar + content area + stars background
-│   ├── Dashboard.tsx           # Brain activity overview & aggregate metrics
+│   ├── Dashboard.tsx           # Brain activity overview & aggregate metrics (live from sessions.json)
 │   ├── Session.tsx             # Live EEG acquisition & session management
 │   └── session/
-│       ├── constants.ts        # Model definitions, calibration steps
+│       ├── constants.ts        # Model definitions (ONNX + scaler), calibration steps
 │       ├── utils.ts            # formatElapsed, formatSamples, buildExportFilename helpers
 │       ├── hooks/
-│       │   ├── useSessionTimer.ts       # Elapsed time + sample counter (512 Hz)
+│       │   ├── useSessionTimer.ts       # Elapsed time + sample counter
 │       │   ├── useModelLoader.ts        # File-picker model loading & validation
+│       │   ├── useSessionRecorder.ts    # In-memory row buffer + CSV serialisation + session summary
 │       │   ├── useCalibration.ts        # Step-through calibration dialog state
 │       │   └── useTgcConnection.ts      # TGC start/stop, tgc-data listener, normalization
 │       └── components/
@@ -128,22 +142,32 @@ src/
 │           ├── ModelManagementCard.tsx  # Model load UI with status indicators
 │           ├── SessionControlsCard.tsx  # Start / Stop / Export buttons
 │           ├── SubjectNameDialog.tsx    # Subject name input dialog
-│           └── CalibrationDialog.tsx    # Animated 4-step calibration flow
+│           ├── CalibrationDialog.tsx    # Animated 4-step calibration flow
+│           └── DisconnectDialog.tsx     # Mid-session headset-drop handler
 ├── components/
 │   ├── AppSidebar.tsx              # Collapsible sidebar (icon mode) with nav + user footer
 │   ├── chart-line-interactive.tsx  # Live 8-band EEG chart + focus index + band toggle pills
 │   ├── chart-area-interactive.tsx  # Historical area chart (Dashboard)
-│   └── section-cards.tsx           # Dashboard metric cards
+│   └── section-cards.tsx           # Dashboard metric cards (reads from SessionStore)
 ├── types/
 │   ├── ui.ts                   # Screen, AppFile (navigation & UI types)
-│   ├── eeg.ts                  # TgcBandData, TgcStatus (headset & signal types)
+│   ├── eeg.ts                  # TgcBandData, TgcStatus, FocusPrediction, SessionSummary
 │   └── index.ts                # Barrel re-export
 └── lib/
     ├── constants.ts            # Shared EASE animation curve
+    ├── useSessionStore.ts      # Zustand store: SessionSummary[], loadSessions, addSession
     └── file-contents.ts        # Screen registry and live/code view routing
 
 src-tauri/src/
-└── lib.rs                      # Rust TGC bridge: start_tgc / stop_tgc Tauri commands
+├── lib.rs                      # App state setup + plugin/command registration
+├── commands/
+│   └── headset.rs              # load_model_files, start_tgc, stop_tgc, get_focus_prediction,
+│                               # write_csv, save_session, load_sessions, get_mock_prediction
+├── models/
+│   ├── ml_data.rs              # ModelManager (ONNX inference, feature extraction, normalisation)
+│   └── tgc_data.rs             # EegPayload struct (mirrors TgcBandData on the frontend)
+└── networking/
+    └── tgc_reader.rs           # TCP reader loop: connect → auth → parse → emit tgc-data events
 ```
 
 ---
@@ -152,8 +176,8 @@ src-tauri/src/
 
 ```
 1. Load Models
-   └─ Open file picker → select ddqn_best_checkpoint.pt / tcn_best_checkpoint.pt / scaler.pkl
-   └─ All 3 must be loaded before the Start button activates
+   └─ Open file picker → select cerebro_unified.onnx and scaler_params.json
+   └─ Both files must be loaded before the Start button activates
 
 2. Start Session
    └─ Enter subject name
@@ -171,16 +195,22 @@ src-tauri/src/
    └─ Frontend receives tgc-data events via Tauri IPC
    └─ All 8 TGAM band powers plotted on the live chart (toggle per band)
    └─ Rolling 30-second window; mock data runs when headset is not connected
-   └─ Focus Index computed as (lowBeta + highBeta) / 2 ÷ theta over last 5 points
-       ├─ ratio ≥ 0.5 → FOCUSED  (mirrors notebook feature engineering)
-       └─ ratio < 0.5 → UNFOCUSED
+   └─ Each valid packet is passed to get_focus_prediction (Rust ONNX inference)
+       ├─ Returns FocusPrediction { label: 0/1, labelName: "Focused"/"Unfocused" }
+       └─ If models are not yet loaded, label defaults to -1 / "N/A" — no data lost
+   └─ Each packet + prediction is appended to the in-memory session buffer (useSessionRecorder)
    └─ Brain State bar and label update in real time
    └─ Session can be paused (Stop) and resumed (Start) without resetting
        └─ stop_tgc fires on pause; start_tgc fires on resume
+   └─ Headset disconnection mid-session triggers DisconnectDialog
+       └─ Offers "Save & End Session" with the samples collected so far
 
 4. Export
    └─ Save dialog opens → generates filename: SubjectName_YYYY-MM-DD_HH-MM-SS.csv
-   └─ On successful save: timer resets, chart clears, session state resets
+   └─ useSessionRecorder.buildCsv() serialises all buffered rows to CSV
+   └─ save_session Tauri command: writes CSV to disk, appends SessionSummary to sessions.json
+   └─ useSessionStore.addSession() updates the Dashboard store in-memory immediately
+   └─ On successful save: timer resets, chart clears, session buffer clears
 ```
 
 ---
@@ -191,12 +221,12 @@ The Dashboard screen displays aggregate metrics across sessions:
 
 | Card           | Metric                                          |
 | -------------- | ----------------------------------------------- |
-| Alpha Power    | Mean alpha band power (μV²) across subjects     |
+| Alpha Power    | Mean alpha band power across subjects           |
 | Signal Quality | Acquisition impedance quality (%)               |
 | Total Sessions | Number of recorded sessions across all subjects |
-| Focus Index    | Alpha/Theta ratio averaged across sessions      |
+| Focus Index    | Mean attention score averaged across sessions   |
 
-> **Note:** These values are currently hardcoded placeholders. Persistence (reading from saved session records on export) is planned as a future enhancement once real EEG hardware is integrated.
+Metrics are computed from `SessionSummary` records persisted in `sessions.json` (stored in the Tauri app-data directory). On app mount, `useSessionStore.loadSessions()` calls the `load_sessions` Tauri command to hydrate the Zustand store. After each export, `addSession()` pushes the new summary in-memory so the Dashboard updates without a restart.
 
 ---
 
@@ -208,7 +238,7 @@ The Dashboard screen displays aggregate metrics across sessions:
 - **Animated dialogs** — subject name + calibration use `animate-ui` primitives
 - **Stat strip** — live elapsed time, sample count, and model load status
 - **8-band live chart** — per-band toggle pills, glassmorphic cards, muted oklch color palette
-- **Brain State indicator** — real-time focus ratio with animated progress bar
+- **Brain State indicator** — real-time ONNX focus/unfocus prediction label with animated progress bar
 
 ---
 
@@ -238,9 +268,6 @@ pnpm run tauri build
 
 ## Known Limitations
 
-- **Data recording not yet wired** — the Export button opens the save dialog but writes no data; the session buffer and CSV serialization are pending
-- **Dashboard metrics are static** — no session history is persisted between app launches
-- **Model inference not yet running** — `.pt` / `.pkl` files are loaded by path but not yet executed; the inference bridge (Python sidecar via `torch` + `pickle`, registered as a Tauri `externalBin`) is pending
-- **TGC must be launched manually** — no auto-start; ThinkGear Connector must be running before clicking Start
+- **Dashboard chart shows an empty state before the first export** — the area chart displays "Export a session to see band trends here." until at least one session has been saved
 
 ---
