@@ -129,7 +129,13 @@ export function SectionCards({ sessions }: Props) {
                 : "Signal quality below threshold"}
           </div>
           <div className="text-muted-foreground text-xs">
-            Impedance within acceptable range
+            {sessions.length === 0
+              ? "Export a session to populate"
+              : last && last.signalQualityPct >= 90
+                ? "Impedance within optimal range"
+                : last && last.signalQualityPct >= 60
+                  ? "Impedance within acceptable range"
+                  : "Poor impedance — check sensor contact"}
           </div>
         </CardFooter>
       </Card>

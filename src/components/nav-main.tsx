@@ -28,7 +28,8 @@ export function NavMain({
               <SidebarMenuButton
                 tooltip={item.title}
                 isActive={item.isActive}
-                onClick={item.onClick}>
+                onClick={item.onClick}
+                className="cursor-pointer">
                 {item.icon && <item.icon />}
                 <span>{item.title}</span>
               </SidebarMenuButton>
