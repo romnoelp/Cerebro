@@ -175,7 +175,7 @@ export function ChartAreaInteractive({
   });
 
   return (
-    <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md">
+    <Card className="@container/card border border-border/50 bg-background/10 backdrop-blur-md flex flex-col flex-1 min-h-0">
       <CardHeader>
         <CardTitle>EEG Band Power</CardTitle>
         <CardDescription>
@@ -218,9 +218,9 @@ export function ChartAreaInteractive({
           </Select>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex-1 min-h-0 flex flex-col">
         {filteredData.length === 0 && (
-          <div className="flex aspect-auto h-52 w-full items-center justify-center">
+          <div className="flex flex-1 w-full items-center justify-center">
             <p className="text-sm text-muted-foreground">
               {sessions.length === 0
                 ? "Export a session to see band trends here."
@@ -231,7 +231,7 @@ export function ChartAreaInteractive({
         <ChartContainer
           config={chartConfig}
           className={
-            filteredData.length === 0 ? "hidden" : "aspect-auto h-52 w-full"
+            filteredData.length === 0 ? "hidden" : "flex-1 min-h-0 w-full"
           }>
           <AreaChart data={filteredData}>
             <defs>

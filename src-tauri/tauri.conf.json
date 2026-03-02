@@ -14,11 +14,12 @@
       {
         "title": "cerebro",
         "width": 1280,
-        "height": 720,
+        "height": 735,
         "resizable": false,
         "fullscreen": false,
-         "maximizable": false,
-         "center": true
+        "maximizable": false,
+        "decorations": false,
+        "center": true
         
       }
     ],

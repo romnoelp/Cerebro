@@ -54,6 +54,11 @@ const App = () => {
             key="intro"
             className="relative flex w-full h-screen overflow-hidden"
             exit={{ opacity: 0, transition: { duration: 0.6, ease: EASE } }}>
+            {/* Frameless-window drag region — sits above all content */}
+            <div
+              data-tauri-drag-region
+              className="absolute inset-x-0 top-0 z-50 h-8"
+            />
             <StarsBackground
               starColor={resolvedTheme === "dark" ? "#FFF" : "#000"}
               factor={0.25}

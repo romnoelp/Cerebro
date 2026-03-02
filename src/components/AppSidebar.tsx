@@ -1,10 +1,7 @@
 import * as React from "react";
 import { motion } from "motion/react";
-import {
-  IconDashboard,
-  IconWaveSine,
-  IconBrandGithub,
-} from "@tabler/icons-react";
+import { useTheme } from "next-themes";
+import { IconBrandGithub } from "@tabler/icons-react";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import {
   Sidebar,
@@ -22,6 +19,10 @@ import {
 } from "@/components/animate-ui/components/base/preview-card";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
+import { Sun } from "@/components/animate-ui/icons/sun";
+import { Moon } from "@/components/animate-ui/icons/moon";
+import { LayoutDashboard } from "@/components/animate-ui/icons/layout-dashboard";
+import { ChartSpline } from "@/components/animate-ui/icons/chart-spline";
 import { type AppFile } from "@/types";
 
 interface AppSidebarProps extends Omit<
@@ -42,12 +43,12 @@ const data = {
     {
       title: "Dashboard",
       url: "#",
-      icon: IconDashboard,
+      icon: <LayoutDashboard animateOnHover className="size-4" />,
     },
     {
       title: "Session",
       url: "#",
-      icon: IconWaveSine,
+      icon: <ChartSpline animateOnHover className="size-4" />,
     },
   ],
 };
@@ -58,6 +59,8 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
   const [hintSeen, setHintSeen] = React.useState<boolean>(
     () => localStorage.getItem(HINT_KEY) === "1",
   );
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const dismissHint = React.useCallback(() => {
     if (!hintSeen) {
@@ -188,6 +191,21 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
         <NavMain items={navItems} />
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+              tooltip={isDark ? "Switch to Light" : "Switch to Dark"}
+              className="cursor-pointer">
+              {isDark ? (
+                <Sun animateOnHover className="size-4" />
+              ) : (
+                <Moon animateOnHover className="size-4" />
+              )}
+              <span>Switch to {isDark ? "Light" : "Dark"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <NavUser user={data.user} />
       </SidebarFooter>
     </Sidebar>

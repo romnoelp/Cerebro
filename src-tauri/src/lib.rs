@@ -8,8 +8,8 @@ use std::sync::{
 };
 
 use commands::headset::{
-    get_focus_prediction, get_mock_prediction, load_model_files, load_sessions, save_session,
-    start_tgc, stop_tgc, write_csv,
+    get_focus_prediction, get_mock_prediction, list_serial_ports, load_model_files, load_sessions,
+    save_session, start_esp32, start_tgc, stop_esp32, stop_tgc, write_csv,
 };
 use models::ml_data::ModelManager;
 use tauri::Manager;
@@ -53,6 +53,8 @@ impl Default for HeadsetState {
 }
 
 pub type HeadsetStateGuard = Mutex<HeadsetState>;
+/// Separate state for the ESP32 serial reader — same structure, different key.
+pub type Esp32StateGuard = Mutex<HeadsetState>;
 
 // Arc so load_model_files can replace the inner Option without cloning state
 // out of the Tauri manager.
@@ -70,12 +72,16 @@ pub fn run() {
             // Model Setup card in the Session screen, which calls load_model_files.
             app.manage(Arc::new(Mutex::new(None::<ModelManager>)) as ModelManagerState);
             app.manage(Mutex::new(HeadsetState::default()) as HeadsetStateGuard);
+            app.manage(Mutex::new(HeadsetState::default()) as Esp32StateGuard);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             load_model_files,
             start_tgc,
             stop_tgc,
+            list_serial_ports,
+            start_esp32,
+            stop_esp32,
             get_focus_prediction,
             get_mock_prediction,
             write_csv,

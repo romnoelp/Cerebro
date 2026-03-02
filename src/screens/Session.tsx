@@ -18,7 +18,10 @@ import { useSessionStore } from "@/lib/useSessionStore";
 import { useSessionTimer } from "./session/hooks/useSessionTimer";
 import { useModelLoader } from "./session/hooks/useModelLoader";
 import { useCalibration } from "./session/hooks/useCalibration";
-import { useTgcConnection } from "./session/hooks/useTgcConnection";
+import {
+  useTgcConnection,
+  type EegSource,
+} from "./session/hooks/useTgcConnection";
 import { useSessionRecorder } from "./session/hooks/useSessionRecorder";
 import { StatCard } from "./session/components/StatCard";
 import { ModelManagementCard } from "./session/components/ModelManagementCard";
@@ -40,6 +43,33 @@ const SessionScreen = () => {
   // so we only fire the disconnect dialog on mid-session drops, not on startup.
   const wasConnectedRef = React.useRef(false);
 
+  // ── EEG source selection ──────────────────────────────────────
+  const [sourceType, setSourceType] = React.useState<"tgc" | "esp32">("tgc");
+  const [esp32Port, setEsp32Port] = React.useState("");
+  const [availablePorts, setAvailablePorts] = React.useState<string[]>([]);
+
+  const source: EegSource =
+    sourceType === "esp32"
+      ? { type: "esp32", port: esp32Port }
+      : { type: "tgc" };
+
+  const loadPorts = React.useCallback(() => {
+    invoke<string[]>("list_serial_ports")
+      .then((ports) => {
+        setAvailablePorts(ports);
+        // Auto-select the first port if none is chosen yet.
+        setEsp32Port((prev) =>
+          prev === "" && ports.length > 0 ? ports[0] : prev,
+        );
+      })
+      .catch(console.error);
+  }, []);
+
+  // Populate port list once on mount so it’s ready when the user picks ESP32.
+  React.useEffect(() => {
+    loadPorts();
+  }, [loadPorts]);
+
   const {
     elapsed,
     sampleCount,
@@ -48,6 +78,7 @@ const SessionScreen = () => {
   const { loadedModels, modelReady, handleLoadModel } = useModelLoader();
   const { liveData, rawData, isConnected, poorSignalLevel } = useTgcConnection(
     isScanning || showCalibrationDialog,
+    source,
   );
   const recorder = useSessionRecorder();
   const addSession = useSessionStore((s) => s.addSession);
@@ -152,9 +183,11 @@ const SessionScreen = () => {
   }, [rawData]);
 
   const signalMessage = !isConnected
-    ? "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
+    ? sourceType === "esp32"
+      ? "Could not open the serial port. Make sure the ESP32 is connected via USB and the correct COM port is selected."
+      : "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
     : poorSignalLevel >= 200
-      ? "ThinkGear Connector is running but no headset was detected. Turn on the headset and make sure it is paired."
+      ? "Connected but no headset was detected. Turn on the headset and make sure it is properly worn."
       : "Headset connected but signal quality is poor. Adjust the headband and try again.";
 
   const handleStopScanning = () => {
@@ -262,9 +295,9 @@ const SessionScreen = () => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}>
-      <div className="@container/main flex flex-col gap-2">
-        <div className="flex flex-col gap-2 py-2 pb-2">
-          <div className="flex items-end justify-between px-4 lg:px-6">
+      <div className="@container/main flex flex-col gap-2 flex-1 min-h-0">
+        <div className="flex flex-col gap-2 py-2 pb-2 flex-1 min-h-0">
+          <div className="flex items-end justify-between px-4 lg:px-6 shrink-0">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-semibold tracking-tight">Session</h1>
               <p className="text-xs text-muted-foreground tracking-wide">
@@ -293,7 +326,9 @@ const SessionScreen = () => {
                         : poorSignalLevel >= 200
                           ? "No Headset"
                           : "Poor Signal"
-                      : "No TGC"}
+                      : sourceType === "esp32"
+                        ? "No ESP32"
+                        : "No TGC"}
                   </span>
                 </div>
               )}
@@ -317,7 +352,7 @@ const SessionScreen = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 px-4 lg:px-6">
+          <div className="grid grid-cols-3 gap-3 px-4 lg:px-6 shrink-0">
             <StatCard
               icon={<IconClockHour3 className="size-3.5" />}
               label="Elapsed"
@@ -346,15 +381,18 @@ const SessionScreen = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 @3xl/main:grid-cols-[1fr_320px] @3xl/main:items-start">
+          <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 pb-3 flex-1 min-h-0 @3xl/main:grid-cols-[1fr_320px] @3xl/main:items-stretch">
             <ChartLineInteractive
               isRunning={isScanning}
               shouldReset={shouldResetChart}
               hasStarted={hasStarted}
               liveData={liveData}
-              className="h-full"
+              className="flex-1 min-h-0"
             />
-            <div className="flex flex-col gap-3 h-full">
+            <div className={cn(
+              "flex flex-col gap-3",
+              sourceType === "esp32" ? "overflow-y-auto" : "h-full",
+            )}>
               <ModelManagementCard
                 loadedModels={loadedModels}
                 modelReady={modelReady}
@@ -364,10 +402,21 @@ const SessionScreen = () => {
               <SessionControlsCard
                 isScanning={isScanning}
                 hasStarted={hasStarted}
-                allLoaded={modelReady}
+                allLoaded={
+                  modelReady && (sourceType !== "esp32" || esp32Port !== "")
+                }
                 onStartScanning={handleStartScanning}
                 onStopScanning={handleStopScanning}
                 onExport={handleExport}
+                sourceType={sourceType}
+                onSourceTypeChange={(type) => {
+                  setSourceType(type);
+                  if (type === "esp32") loadPorts();
+                }}
+                esp32Port={esp32Port}
+                onEsp32PortChange={setEsp32Port}
+                availablePorts={availablePorts}
+                onRefreshPorts={loadPorts}
               />
             </div>
           </div>

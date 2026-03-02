@@ -1,4 +1,4 @@
-import { type Icon } from "@tabler/icons-react";
+import { type ReactNode } from "react";
 
 import {
   SidebarGroup,
@@ -14,7 +14,7 @@ export function NavMain({
   items: {
     title: string;
     url: string;
-    icon?: Icon;
+    icon?: ReactNode;
     isActive?: boolean;
     onClick?: () => void;
   }[];
@@ -30,7 +30,7 @@ export function NavMain({
                 isActive={item.isActive}
                 onClick={item.onClick}
                 className="cursor-pointer">
-                {item.icon && <item.icon />}
+                {item.icon}
                 <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>

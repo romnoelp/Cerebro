@@ -319,10 +319,10 @@ export function ChartLineInteractive({
           })}
         </div>
       </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex flex-col flex-1 min-h-0">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-56 w-full">
+          className="flex-1 min-h-0 w-full">
           <LineChart
             data={displayData}
             margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>

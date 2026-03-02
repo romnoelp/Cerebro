@@ -14,9 +14,9 @@ const DashboardScreen = () => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}>
-      <div className="@container/main flex flex-col gap-2">
-        <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2">
-          <div className="flex items-end justify-between px-4 lg:px-6">
+      <div className="@container/main flex flex-col gap-2 flex-1 min-h-0">
+        <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2 flex-1 min-h-0">
+          <div className="flex items-end justify-between px-4 lg:px-6 shrink-0">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-semibold tracking-tight">
                 Dashboard
@@ -36,7 +36,7 @@ const DashboardScreen = () => {
             </div>
           </div>
           <SectionCards sessions={sessions} />
-          <div className="px-4 lg:px-6">
+          <div className="px-4 lg:px-6 flex-1 min-h-0 flex flex-col pb-3">
             <ChartAreaInteractive sessions={sessions} />
           </div>
         </div>

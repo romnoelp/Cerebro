@@ -8,8 +8,11 @@ use crate::{
         ml_data::{FocusPrediction, ModelManager, ModelPaths},
         tgc_data::EegPayload,
     },
-    networking::tgc_reader::{run_tgc_reader, ReaderContext},
-    HeadsetStateGuard, ModelManagerState,
+    networking::{
+        esp32_reader::{available_ports, run_esp32_reader, Esp32ReaderCtx},
+        tgc_reader::{run_tgc_reader, ReaderContext},
+    },
+    Esp32StateGuard, HeadsetStateGuard, ModelManagerState,
 };
 
 const MODEL_NOT_LOADED: &str =
@@ -49,6 +52,43 @@ pub fn start_tgc(app: AppHandle, headset: State<HeadsetStateGuard>) -> Result<()
 #[tauri::command]
 pub fn stop_tgc(headset: State<HeadsetStateGuard>) -> Result<(), String> {
     let mut guard = headset.lock().map_err(|e| e.to_string())?;
+    guard.stop();
+    Ok(())
+}
+
+// ── ESP32 USB serial source ──────────────────────────────────────────────────
+
+/// Returns the names of all available serial ports (e.g. ["COM3", "COM6"]).
+#[tauri::command]
+pub fn list_serial_ports() -> Vec<String> {
+    available_ports()
+}
+
+/// Idempotent — a running ESP32 session is left unchanged.
+#[tauri::command]
+pub fn start_esp32(
+    port: String,
+    app: AppHandle,
+    esp32: State<Esp32StateGuard>,
+) -> Result<(), String> {
+    let mut guard = esp32.lock().map_err(|e| e.to_string())?;
+    if guard.is_running() {
+        return Ok(());
+    }
+    guard.reset();
+    let ctx = Esp32ReaderCtx {
+        app,
+        stop_flag: Arc::clone(&guard.stop_flag),
+        port,
+    };
+    guard.thread = Some(std::thread::spawn(move || run_esp32_reader(ctx)));
+    Ok(())
+}
+
+/// Stop the ESP32 serial reader.
+#[tauri::command]
+pub fn stop_esp32(esp32: State<Esp32StateGuard>) -> Result<(), String> {
+    let mut guard = esp32.lock().map_err(|e| e.to_string())?;
     guard.stop();
     Ok(())
 }

@@ -1,14 +1,9 @@
-import { IconDotsVertical, IconLogout } from "@tabler/icons-react";
-import { useTheme } from "next-themes";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-
+import { IconDotsVertical } from "@tabler/icons-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/animate-ui/components/radix/dropdown-menu";
 import {
@@ -17,8 +12,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/animate-ui/components/radix/sidebar";
-import { Sun } from "@/components/animate-ui/icons/sun";
-import { Moon } from "@/components/animate-ui/icons/moon";
 
 export function NavUser({
   user,
@@ -30,10 +23,6 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
-  const handleExit = () => getCurrentWindow().close();
 
   return (
     <SidebarMenu>
@@ -75,20 +64,6 @@ export function NavUser({
                 </div>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={toggleTheme}>
-              {isDark ? (
-                <Sun animateOnHover className="size-4" />
-              ) : (
-                <Moon animateOnHover className="size-4" />
-              )}
-              Switch to {isDark ? "Light" : "Dark"}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleExit}>
-              <IconLogout />
-              Exit
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
