@@ -173,6 +173,15 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+html {
+  /*
+   * Scale the root font-size (and therefore all rem-based sizes) linearly
+   * with the viewport width:  14px at 960px wide → 18px at 1920px wide.
+   * All Tailwind utilities (spacing, text, radii, etc.) scale automatically.
+   */
+  font-size: clamp(0.875rem, 0.625rem + 0.4167vw, 1.125rem);
+}
+
 body {
   font-family: var(--font-sans);
 }

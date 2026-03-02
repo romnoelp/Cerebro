@@ -2,6 +2,8 @@ import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
 import { cn } from "./lib/utils";
+import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { StarsBackground } from "./components/animate-ui/components/backgrounds/stars";
 import { Toaster } from "sileo";
 import Layout from "./screens/Layout";
@@ -15,10 +17,35 @@ import {
 import { EASE } from "./lib/constants";
 import { type Screen } from "./types";
 
+/** Fraction of the monitor's logical resolution to use for the window. */
+const WINDOW_SCALE = 0.8;
+/** Minimum window dimensions in logical pixels. */
+const MIN_WIDTH = 960;
+const MIN_HEIGHT = 600;
+
 const App = () => {
   const { resolvedTheme } = useTheme();
   const [screen, setScreen] = React.useState<Screen>("home");
   const [stepIndex, setStepIndex] = React.useState(0);
+
+  // Resize the window to a fraction of the current monitor's resolution.
+  React.useEffect(() => {
+    async function fitToMonitor() {
+      try {
+        const monitor = await currentMonitor();
+        if (!monitor) return;
+        const scale = monitor.scaleFactor;
+        const targetW = Math.max(MIN_WIDTH, Math.round((monitor.size.width / scale) * WINDOW_SCALE));
+        const targetH = Math.max(MIN_HEIGHT, Math.round((monitor.size.height / scale) * WINDOW_SCALE));
+        const win = getCurrentWindow();
+        await win.setSize(new LogicalSize(targetW, targetH));
+        await win.center();
+      } catch {
+        // Running outside Tauri (browser preview) — skip.
+      }
+    }
+    fitToMonitor();
+  }, []);
 
   const handleStart = () => {
     setScreen("loading");
