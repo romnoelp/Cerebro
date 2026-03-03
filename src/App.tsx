@@ -10,18 +10,18 @@ import Layout from "./screens/Layout";
 import { HomeScreen } from "./screens/Home";
 import { LoadingScreen } from "./screens/Loading";
 import {
-  LOADING_STEPS,
-  STEP_DURATION,
-  FADE_TO_SESSION_DELAY,
+  loadingSteps,
+  stepDuration,
+  fadeToSessionDelay,
 } from "./screens/intro/constants";
-import { EASE } from "./lib/constants";
+import { ease } from "./lib/constants";
 import { type Screen } from "./types";
 
 /** Fraction of the monitor's logical resolution to use for the window. */
-const WINDOW_SCALE = 0.8;
+const windowScale = 0.8;
 /** Minimum window dimensions in logical pixels. */
-const MIN_WIDTH = 960;
-const MIN_HEIGHT = 600;
+const minWidth = 960;
+const minHeight = 600;
 
 const App = () => {
   const { resolvedTheme } = useTheme();
@@ -35,8 +35,14 @@ const App = () => {
         const monitor = await currentMonitor();
         if (!monitor) return;
         const scale = monitor.scaleFactor;
-        const targetW = Math.max(MIN_WIDTH, Math.round((monitor.size.width / scale) * WINDOW_SCALE));
-        const targetH = Math.max(MIN_HEIGHT, Math.round((monitor.size.height / scale) * WINDOW_SCALE));
+        const targetW = Math.max(
+          minWidth,
+          Math.round((monitor.size.width / scale) * windowScale),
+        );
+        const targetH = Math.max(
+          minHeight,
+          Math.round((monitor.size.height / scale) * windowScale),
+        );
         const win = getCurrentWindow();
         await win.setSize(new LogicalSize(targetW, targetH));
         await win.center();
@@ -55,13 +61,13 @@ const App = () => {
   React.useEffect(() => {
     if (screen !== "loading") return;
 
-    if (stepIndex < LOADING_STEPS.length - 1) {
-      const t = setTimeout(() => setStepIndex((i) => i + 1), STEP_DURATION);
+    if (stepIndex < loadingSteps.length - 1) {
+      const t = setTimeout(() => setStepIndex((i) => i + 1), stepDuration);
       return () => clearTimeout(t);
     } else {
       const t = setTimeout(
         () => setScreen("session"),
-        STEP_DURATION + FADE_TO_SESSION_DELAY,
+        stepDuration + fadeToSessionDelay,
       );
       return () => clearTimeout(t);
     }
@@ -80,7 +86,7 @@ const App = () => {
           <motion.main
             key="intro"
             className="relative flex w-full h-screen overflow-hidden"
-            exit={{ opacity: 0, transition: { duration: 0.6, ease: EASE } }}>
+            exit={{ opacity: 0, transition: { duration: 0.6, ease: ease } }}>
             {/* Frameless-window drag region — sits above all content */}
             <div
               data-tauri-drag-region

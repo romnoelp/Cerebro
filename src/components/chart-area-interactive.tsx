@@ -154,11 +154,11 @@ export function ChartAreaInteractive({
   // One point per session — date from exportedAt, values from pre-computed means
   const chartData = React.useMemo(
     () =>
-      sessions.map((s) => ({
-        date: s.exportedAt.slice(0, 10), // "YYYY-MM-DD"
-        alpha: Math.round(s.meanAlpha * 10) / 10,
-        theta: Math.round(s.meanTheta * 10) / 10,
-        subject: s.subjectName,
+      sessions.map((session) => ({
+        date: session.exportedAt.slice(0, 10),
+        alpha: Math.round(session.meanAlpha * 10) / 10,
+        theta: Math.round(session.meanTheta * 10) / 10,
+        subject: session.subjectName,
       })),
     [sessions],
   );

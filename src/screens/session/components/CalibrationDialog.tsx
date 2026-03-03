@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import { cn } from "@/lib/utils";
 import { calibrationSteps } from "../constants";
-import { EASE } from "@/lib/constants";
+import { ease } from "@/lib/constants";
 
 interface CalibrationDialogProps {
   open: boolean;
@@ -86,7 +86,7 @@ export const CalibrationDialog = ({
               animate={{
                 opacity: 1,
                 y: 0,
-                transition: { duration: 0.3, ease: EASE },
+                transition: { duration: 0.3, ease: ease },
               }}>
               <p className="text-xs text-muted-foreground/80 font-mono">
                 {signalMessage}
@@ -106,7 +106,7 @@ export const CalibrationDialog = ({
                     animate={{
                       opacity: 1,
                       x: 0,
-                      transition: { duration: 0.3, ease: EASE },
+                      transition: { duration: 0.3, ease: ease },
                     }}>
                     <span
                       className={cn(
@@ -147,7 +147,7 @@ export const CalibrationDialog = ({
               animate={{
                 opacity: 1,
                 y: 0,
-                transition: { duration: 0.4, ease: EASE },
+                transition: { duration: 0.4, ease: ease },
               }}
               className="w-full flex flex-col gap-2">
               <Button
@@ -173,7 +173,7 @@ export const CalibrationDialog = ({
                     animate={{
                       opacity: 1,
                       y: 0,
-                      transition: { duration: 0.5, ease: EASE },
+                      transition: { duration: 0.5, ease: ease },
                     }}
                     className="w-full flex flex-col gap-2">
                     <Button

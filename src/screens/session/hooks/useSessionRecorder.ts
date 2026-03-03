@@ -1,5 +1,9 @@
 import { useRef, useState } from "react";
-import { type TgcBandData, type FocusPrediction, type SessionSummary } from "@/types";
+import {
+  type TgcBandData,
+  type FocusPrediction,
+  type SessionSummary,
+} from "@/types";
 
 // One row per accepted EEG packet (~1 Hz).
 interface CsvRow {
@@ -15,11 +19,17 @@ interface CsvRow {
   attention: number;
   meditation: number;
   poorSignalLevel: number;
-  focusLabel: number;   // 0 = Unfocused, 1 = Focused, -1 = model not loaded
+  focusLabel: number; // 0 = Unfocused, 1 = Focused, -1 = model not loaded
   focusPrediction: string;
 }
 
-const CSV_HEADER =
+export interface BuildSummaryOptions {
+  subjectName: string;
+  durationSecs: number;
+  csvPath: string;
+}
+
+const csvHeader =
   "timestamp,delta,theta,lowAlpha,highAlpha,lowBeta,highBeta,lowGamma,midGamma," +
   "attention,meditation,poorSignalLevel,focusLabel,focusPrediction";
 
@@ -40,24 +50,27 @@ const rowToLine = (row: CsvRow): string => {
     row.focusLabel,
     row.focusPrediction,
   ].join(",");
-}
+};
 
 /**
- * Accumulates EEG + prediction rows in a ref (no re-renders per packet).
- * `rowCount` is the only stateful value — updated on record/clear so the UI
- * can show how many samples have been collected.
+ * To accumulate EEG + prediction rows in a ref so data collection causes no
+ * re-renders per packet. `rowCount` is the only stateful value — it updates
+ * on each record/clear so the UI knows how many samples have been collected.
  */
 export function useSessionRecorder() {
-  const rowsRef = useRef<CsvRow[]>([]);
+  const accumulatedRowsRef = useRef<CsvRow[]>([]);
   const [rowCount, setRowCount] = useState(0);
 
   /**
-   * Appends one row. Call this once per accepted `tgc-data` packet.
-   * Pass `prediction` as undefined when the model is not yet loaded — the row
-   * will be recorded with label -1 and labelName "N/A" so no data is lost.
+   * To append one row per accepted `tgc-data` packet. Pass `prediction` as
+   * undefined when the model is not yet loaded — the row is recorded with
+   * label -1 and labelName "N/A" so no packet is silently dropped.
    */
-  const record = (raw: TgcBandData, prediction: FocusPrediction | undefined) => {
-    rowsRef.current.push({
+  const record = (
+    raw: TgcBandData,
+    prediction: FocusPrediction | undefined,
+  ) => {
+    accumulatedRowsRef.current.push({
       timestamp: new Date().toISOString(),
       delta: raw.delta,
       theta: raw.theta,
@@ -73,27 +86,24 @@ export function useSessionRecorder() {
       focusLabel: prediction?.label ?? -1,
       focusPrediction: prediction?.labelName ?? "N/A",
     });
-    setRowCount(rowsRef.current.length);
-  }
+    setRowCount(accumulatedRowsRef.current.length);
+  };
 
-  /** Serializes all accumulated rows to a CSV string ready for disk write. */
+  /** To serialize all accumulated rows to a CSV string ready for disk write. */
   const buildCsv = (): string => {
-    return [CSV_HEADER, ...rowsRef.current.map(rowToLine)].join("\n");
-  }
+    return [csvHeader, ...accumulatedRowsRef.current.map(rowToLine)].join("\n");
+  };
 
   /**
-   * Builds a compact SessionSummary from the accumulated rows.
-   * Call this just before export so the summary reflects the full session.
+   * To build a compact SessionSummary from all accumulated rows. Call this
+   * just before export so the summary reflects the complete session.
    */
-  const buildSummary = (
-    subjectName: string,
-    durationSecs: number,
-    csvPath: string,
-  ): SessionSummary => {
-    const rows = rowsRef.current;
-    const count = rows.length || 1;
+  const buildSummary = (options: BuildSummaryOptions): SessionSummary => {
+    const { subjectName, durationSecs, csvPath } = options;
+    const rows = accumulatedRowsRef.current;
+    const rowTotal = rows.length || 1;
     const meanOf = (key: keyof CsvRow): number =>
-      rows.reduce((sum, r) => sum + Number(r[key]), 0) / count;
+      rows.reduce((sum, row) => sum + Number(row[key]), 0) / rowTotal;
 
     return {
       id: crypto.randomUUID(),
@@ -102,22 +112,23 @@ export function useSessionRecorder() {
       csvPath,
       sampleCount: rows.length,
       durationSecs,
-      focusedCount: rows.filter((r) => r.focusLabel === 1).length,
-      unfocusedCount: rows.filter((r) => r.focusLabel === 0).length,
+      focusedCount: rows.filter((row) => row.focusLabel === 1).length,
+      unfocusedCount: rows.filter((row) => row.focusLabel === 0).length,
       meanAlpha: (meanOf("lowAlpha") + meanOf("highAlpha")) / 2,
       meanTheta: meanOf("theta"),
       meanAttention: meanOf("attention"),
       meanMeditation: meanOf("meditation"),
       signalQualityPct:
-        (rows.filter((r) => r.poorSignalLevel === 0).length / count) * 100,
+        (rows.filter((row) => row.poorSignalLevel === 0).length / rowTotal) *
+        100,
     };
   };
 
-  /** Resets the recorder — call after a successful export. */
+  /** To reset the recorder after a successful export. */
   const clear = () => {
-    rowsRef.current = [];
+    accumulatedRowsRef.current = [];
     setRowCount(0);
-  }
+  };
 
   return { rowCount, record, buildCsv, buildSummary, clear };
 }

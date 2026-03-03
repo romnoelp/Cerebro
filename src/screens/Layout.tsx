@@ -1,10 +1,10 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTheme } from "next-themes";
-import { EASE } from "@/lib/constants";
+import { ease } from "@/lib/constants";
 import AppSidebar from "@/components/AppSidebar";
 import CodeView from "@/components/CodeView";
-import { FILE_LABELS, FILE_SOURCE, LIVE_SCREENS } from "@/lib/file-contents";
+import { fileLabels, fileSource, liveScreens } from "@/lib/file-contents";
 import { type AppFile } from "@/types";
 import SessionScreen from "./Session";
 import DashboardScreen from "./Dashboard";
@@ -16,8 +16,9 @@ import {
   SidebarInset,
 } from "@/components/animate-ui/components/radix/sidebar";
 import { useSessionStore } from "@/lib/useSessionStore";
+import { logger } from "@/lib/logger";
 
-const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
+const screenComponents: Record<AppFile, React.ComponentType> = {
   session: SessionScreen,
   dashboard: DashboardScreen,
 };
@@ -25,14 +26,16 @@ const SCREEN_COMPONENTS: Record<AppFile, React.ComponentType> = {
 const Layout = () => {
   const [activeScreen, setActiveScreen] = React.useState<AppFile>("dashboard");
   const { resolvedTheme } = useTheme();
-  const loadSessions = useSessionStore((s) => s.loadSessions);
+  const loadSessions = useSessionStore((store) => store.loadSessions);
 
   React.useEffect(() => {
-    loadSessions().catch(console.error);
+    loadSessions().catch((error) =>
+      logger.systemError("Failed to load persisted sessions", error),
+    );
   }, [loadSessions]);
 
-  const isLiveScreen = LIVE_SCREENS.includes(activeScreen);
-  const ActiveScreen = SCREEN_COMPONENTS[activeScreen];
+  const isLiveScreen = liveScreens.includes(activeScreen);
+  const ActiveScreen = screenComponents[activeScreen];
 
   return (
     <motion.div
@@ -41,7 +44,7 @@ const Layout = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.6, ease: EASE }}>
+      transition={{ duration: 0.6, ease: ease }}>
       <SidebarProvider
         style={
           {
@@ -70,8 +73,8 @@ const Layout = () => {
             </AnimatePresence>
           ) : (
             <CodeView
-              filename={FILE_LABELS[activeScreen]}
-              source={FILE_SOURCE[activeScreen]}
+              filename={fileLabels[activeScreen]}
+              source={fileSource[activeScreen]}
             />
           )}
         </SidebarInset>

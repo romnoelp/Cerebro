@@ -2,15 +2,15 @@ import { motion } from "motion/react";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import { Progress } from "@/components/animate-ui/components/radix/progress";
 import { cn } from "@/lib/utils";
-import { LOADING_STEPS } from "./intro/constants";
-import { EASE } from "@/lib/constants";
+import { loadingSteps } from "./intro/constants";
+import { ease } from "@/lib/constants";
 
 interface LoadingScreenProps {
   stepIndex: number;
 }
 
 export const LoadingScreen = ({ stepIndex }: LoadingScreenProps) => {
-  const progress = Math.round(((stepIndex + 1) / LOADING_STEPS.length) * 100);
+  const progress = Math.round(((stepIndex + 1) / loadingSteps.length) * 100);
 
   return (
     <motion.div
@@ -19,12 +19,12 @@ export const LoadingScreen = ({ stepIndex }: LoadingScreenProps) => {
       animate={{
         opacity: 1,
         scale: 1,
-        transition: { duration: 0.55, ease: EASE },
+        transition: { duration: 0.55, ease: ease },
       }}
       exit={{
         opacity: 0,
         scale: 0.97,
-        transition: { duration: 0.4, ease: EASE },
+        transition: { duration: 0.4, ease: ease },
       }}>
       <div className="flex flex-col items-center gap-y-4">
         <div className="relative flex items-center justify-center">
@@ -52,7 +52,7 @@ export const LoadingScreen = ({ stepIndex }: LoadingScreenProps) => {
       </div>
 
       <div className="flex flex-col gap-y-2 w-72 font-mono">
-        {LOADING_STEPS.map((step, i) => {
+        {loadingSteps.map((step, i) => {
           if (i > stepIndex) return null;
           const isDone = i < stepIndex;
           const isCurrent = i === stepIndex;
@@ -64,7 +64,7 @@ export const LoadingScreen = ({ stepIndex }: LoadingScreenProps) => {
               animate={{
                 opacity: 1,
                 x: 0,
-                transition: { duration: 0.3, ease: EASE },
+                transition: { duration: 0.3, ease: ease },
               }}>
               <span
                 className={cn(

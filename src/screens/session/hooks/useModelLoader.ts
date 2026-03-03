@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { sileo } from "sileo";
 import { requiredModels, ModelDef, ModelKey } from "../constants";
+import { logger } from "@/lib/logger";
 
 // ── Pure helpers ──────────────────────────────────────────────────────────────
 
@@ -12,9 +13,11 @@ const pickModelFile = async (): Promise<string | null> => {
     filters: [{ name: "Model Files", extensions: ["onnx", "json"] }],
   });
   return selected ? (selected as string) : null;
-}
+};
 
-const classifyFile = (path: string): { key: ModelKey; model: ModelDef; filename: string } | null => {
+const classifyFile = (
+  path: string,
+): { key: ModelKey; model: ModelDef; filename: string } | null => {
   const filename = path.split(/[\\/]/).pop() ?? "";
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const model = requiredModels.find((m) => m.ext === ext) ?? null;
@@ -28,85 +31,97 @@ const classifyFile = (path: string): { key: ModelKey; model: ModelDef; filename:
   }
 
   return { key: model.key, model, filename };
-}
+};
 
 const notifyAlreadyRegistered = (model: ModelDef) => {
   sileo.info({
     title: `${model.label} already registered`,
     description: "Pick the other file, or restart to swap it.",
   });
-}
+};
 
 const notifyStaged = (model: ModelDef, filename: string) => {
   sileo.success({ title: `${model.label} registered`, description: filename });
-}
+};
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export const useModelLoader = () => {
-  const [staged, setStaged] = useState<Record<ModelKey, boolean>>({
+  const [stagedModelMap, setStagedModelMap] = useState<
+    Record<ModelKey, boolean>
+  >({
     onnx: false,
     scaler: false,
   });
-  // Accumulates OS paths until both are known, then hands them to the backend.
-  const pathsRef = useRef<Record<ModelKey, string | null>>({ onnx: null, scaler: null });
-  // Becomes true only after the backend confirms the ONNX session is live.
+  // Accumulates OS paths until both are known, then forwards them to the backend.
+  const pendingModelPathsRef = useRef<Record<ModelKey, string | null>>({
+    onnx: null,
+    scaler: null,
+  });
   const [modelReady, setModelReady] = useState(false);
 
-  // Records the file's path in the ref and marks it staged in state.
-  // Returns the resulting staged map so callers can inspect it immediately
-  // without waiting for the next render.
-  const stageFile = (key: ModelKey, path: string): Record<ModelKey, boolean> => {
-    pathsRef.current = { ...pathsRef.current, [key]: path };
-    const updatedStaged = { ...staged, [key]: true };
-    setStaged(updatedStaged);
-    return updatedStaged;
-  }
+  // To record the file path and mark the slot staged. Returns the updated map
+  // immediately so the caller can check completeness without waiting for a render.
+  const stageFile = (
+    key: ModelKey,
+    path: string,
+  ): Record<ModelKey, boolean> => {
+    pendingModelPathsRef.current = {
+      ...pendingModelPathsRef.current,
+      [key]: path,
+    };
+    const updatedStagedMap = { ...stagedModelMap, [key]: true };
+    setStagedModelMap(updatedStagedMap);
+    return updatedStagedMap;
+  };
 
-  const activateModel = async (paths: Record<ModelKey, string | null>) => {
+  const activateModel = async (
+    pendingPaths: Record<ModelKey, string | null>,
+  ) => {
     await invoke("load_model_files", {
-      paths: { onnxPath: paths.onnx!, scalerPath: paths.scaler! },
+      paths: { onnxPath: pendingPaths.onnx!, scalerPath: pendingPaths.scaler! },
     });
     setModelReady(true);
     sileo.success({
       title: "All models loaded",
       description: "ONNX session is live. Session can now be started.",
     });
-  }
+  };
 
-  const rollback = (err: unknown) => {
+  const rollbackPartialModelLoad = (error: unknown) => {
     // Stale paths must not persist — a partial load would silently produce
     // wrong inference if the user retries with a different file.
-    setStaged({ onnx: false, scaler: false });
-    pathsRef.current = { onnx: null, scaler: null };
+    setStagedModelMap({ onnx: false, scaler: false });
+    pendingModelPathsRef.current = { onnx: null, scaler: null };
     setModelReady(false);
-    sileo.error({ title: "Failed to load models", description: String(err) });
-  }
+    logger.ioError("Model activation failed", error);
+    sileo.error({ title: "Failed to load models", description: String(error) });
+  };
 
   const handleLoadModel = async () => {
     try {
-      const path = await pickModelFile();
-      if (!path) return;
+      const selectedPath = await pickModelFile();
+      if (!selectedPath) return;
 
-      const classified = classifyFile(path);
+      const classified = classifyFile(selectedPath);
       if (!classified) return;
 
-      if (staged[classified.key]) {
+      if (stagedModelMap[classified.key]) {
         notifyAlreadyRegistered(classified.model);
         return;
       }
 
-      const updatedStaged = stageFile(classified.key, path);
+      const updatedStagedMap = stageFile(classified.key, selectedPath);
 
-      if (Object.values(updatedStaged).every(Boolean)) {
-        await activateModel(pathsRef.current);
+      if (Object.values(updatedStagedMap).every(Boolean)) {
+        await activateModel(pendingModelPathsRef.current);
       } else {
         notifyStaged(classified.model, classified.filename);
       }
-    } catch (err) {
-      rollback(err);
+    } catch (error) {
+      rollbackPartialModelLoad(error);
     }
   };
 
-  return { loadedModels: staged, modelReady, handleLoadModel };
+  return { loadedModels: stagedModelMap, modelReady, handleLoadModel };
 };

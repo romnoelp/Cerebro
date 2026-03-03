@@ -4,9 +4,9 @@ import { type SessionSummary } from "@/types";
 
 interface SessionStore {
   sessions: SessionSummary[];
-  /** One-time hydration from sessions.json — call on app mount. */
+  /** To hydrate the store from sessions.json on app mount. Call once. */
   loadSessions: () => Promise<void>;
-  /** Push a new summary into the store immediately after export. */
+  /** To push a new summary into the store immediately after a successful export. */
   addSession: (summary: SessionSummary) => void;
 }
 
@@ -14,10 +14,10 @@ export const useSessionStore = create<SessionStore>((set) => ({
   sessions: [],
 
   loadSessions: async () => {
-    const sessions = await invoke<SessionSummary[]>("load_sessions");
-    set({ sessions });
+    const persistedSessions = await invoke<SessionSummary[]>("load_sessions");
+    set({ sessions: persistedSessions });
   },
 
   addSession: (summary) =>
-    set((state) => ({ sessions: [...state.sessions, summary] })),
+    set((store) => ({ sessions: [...store.sessions, summary] })),
 }));

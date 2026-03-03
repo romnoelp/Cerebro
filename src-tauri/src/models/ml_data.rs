@@ -39,16 +39,19 @@ pub struct ModelManager {
 }
 
 impl ModelManager {
+    /// To construct a live ONNX inference session and load the paired
+    /// StandardScaler parameters from disk. Both files must be valid before
+    /// any inference is possible.
     pub fn load(paths: &ModelPaths) -> Result<Self, String> {
         let session = Session::builder()
-            .map_err(|e: ort::Error| e.to_string())?
+            .map_err(|error: ort::Error| error.to_string())?
             .commit_from_file(&paths.onnx_path)
-            .map_err(|e: ort::Error| format!("Failed to load ONNX model: {e}"))?;
+            .map_err(|error: ort::Error| format!("Failed to load ONNX model: {error}"))?;
 
         let scaler_json = std::fs::read_to_string(&paths.scaler_path)
-            .map_err(|e| format!("Cannot read scaler: {e}"))?;
-        let params: ScalerParams =
-            serde_json::from_str(&scaler_json).map_err(|e| format!("Bad scaler JSON: {e}"))?;
+            .map_err(|error| format!("Cannot read scaler: {error}"))?;
+        let params: ScalerParams = serde_json::from_str(&scaler_json)
+            .map_err(|error| format!("Bad scaler JSON: {error}"))?;
 
         Ok(Self {
             session,
@@ -58,16 +61,18 @@ impl ModelManager {
         })
     }
 
-    /// Call once per EEG packet in order — mutates `prev_delta_relative` so
-    /// the temporal-delta feature stays coherent across consecutive calls.
+    /// To run a single inference pass on one EEG packet. Must be called in
+    /// packet-arrival order because it mutates `prev_delta_relative` to
+    /// maintain the temporal-delta feature across consecutive windows.
     pub fn infer(&mut self, payload: &EegPayload) -> Result<FocusPrediction, String> {
         let features = self.extract_features(payload);
         let normalised = self.normalise(&features);
         self.run_session(normalised)
     }
 
-    // Converts raw absolute band powers to the 11-feature vector expected by
-    // the model. Must stay in sync with Python's `_features_from_bands`.
+    // To produce the 11-element feature vector consumed by the ONNX model.
+    // Must stay in sync with Python’s `_features_from_bands` so that the
+    // training distribution and runtime distribution are identical.
     fn extract_features(&mut self, payload: &EegPayload) -> [f32; 11] {
         let absolute_powers = [
             payload.delta as f32,
@@ -109,22 +114,24 @@ impl ModelManager {
         features
             .iter()
             .enumerate()
-            .map(|(i, x)| (x - self.mean[i]) / self.scale[i])
+            .map(|(feature_index, value)| {
+                (value - self.mean[feature_index]) / self.scale[feature_index]
+            })
             .collect()
     }
 
     fn run_session(&mut self, normalised: Vec<f32>) -> Result<FocusPrediction, String> {
         let input = Tensor::<f32>::from_array(([1i64, 1i64, 11i64], normalised))
-            .map_err(|e: ort::Error| e.to_string())?;
+            .map_err(|error: ort::Error| error.to_string())?;
 
         let outputs = self
             .session
             .run(ort::inputs!["eeg_stream" => input])
-            .map_err(|e: ort::Error| e.to_string())?;
+            .map_err(|error: ort::Error| error.to_string())?;
 
         let (_, predicted_class_ids) = outputs["focus_prediction"]
             .try_extract_tensor::<i64>()
-            .map_err(|e: ort::Error| e.to_string())?;
+            .map_err(|error: ort::Error| error.to_string())?;
 
         let predicted_class = *predicted_class_ids
             .first()
@@ -137,7 +144,7 @@ impl ModelManager {
     }
 }
 
-// Maps a raw ONNX class index to its human-readable focus label.
+// To assign a human-readable focus label to a raw ONNX class index.
 fn focus_label_name(predicted_class: i64) -> String {
     if predicted_class == 1 {
         "Focused".to_string()
@@ -149,5 +156,5 @@ fn focus_label_name(predicted_class: i64) -> String {
 // Divides each band power by the total so all eight values sum to 1.0.
 fn relative_powers(absolute_powers: [f32; 8]) -> [f32; 8] {
     let total: f32 = absolute_powers.iter().sum::<f32>() + 1e-10;
-    absolute_powers.map(|p| p / total)
+    absolute_powers.map(|band| band / total)
 }

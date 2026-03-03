@@ -1,11 +1,11 @@
 import { motion } from "motion/react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
-import { EASE } from "@/lib/constants";
+import { ease } from "@/lib/constants";
 import { useSessionStore } from "@/lib/useSessionStore";
 
 const DashboardScreen = () => {
-  const sessions = useSessionStore((s) => s.sessions);
+  const sessions = useSessionStore((store) => store.sessions);
 
   return (
     <motion.div
@@ -13,7 +13,7 @@ const DashboardScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}>
+      transition={{ duration: 0.3, ease: ease }}>
       <div className="@container/main flex flex-col gap-2 flex-1 min-h-0">
         <div className="flex flex-col gap-3 py-2 md:gap-3 md:py-2 flex-1 min-h-0">
           <div className="flex items-end justify-between px-4 lg:px-6 shrink-0">

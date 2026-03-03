@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import neuralNetwork from "@/assets/neuralNetwork.svg";
 import { LiquidButton } from "@/components/animate-ui/components/buttons/liquid";
-import { EASE } from "@/lib/constants";
+import { ease } from "@/lib/constants";
 
 interface HomeScreenProps {
   onStart: () => void;
@@ -12,8 +12,8 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
     <motion.div
       className="absolute inset-0 flex w-full"
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1, transition: { duration: 0.7, ease: EASE } }}
-      exit={{ opacity: 0, transition: { duration: 0.45, ease: EASE } }}>
+      animate={{ opacity: 1, transition: { duration: 0.7, ease: ease } }}
+      exit={{ opacity: 0, transition: { duration: 0.45, ease: ease } }}>
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-y-7">
         <motion.div
           className="relative flex items-center justify-center"
@@ -21,7 +21,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             scale: 1,
-            transition: { delay: 0.12, duration: 0.8, ease: EASE },
+            transition: { delay: 0.12, duration: 0.8, ease: ease },
           }}>
           {[180, 250, 320].map((size, i) => (
             <motion.div
@@ -50,7 +50,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             y: 0,
-            transition: { delay: 0.28, duration: 0.7, ease: EASE },
+            transition: { delay: 0.28, duration: 0.7, ease: ease },
           }}>
           <h1 className="text-5xl font-mono font-bold tracking-tight">
             Cerebro
@@ -66,7 +66,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             y: 0,
-            transition: { delay: 0.44, duration: 0.6, ease: EASE },
+            transition: { delay: 0.44, duration: 0.6, ease: ease },
           }}>
           <motion.span
             className="w-1.5 h-1.5 rounded-full bg-foreground/70"
@@ -85,7 +85,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
         animate={{
           scaleY: 1,
           opacity: 1,
-          transition: { delay: 0.3, duration: 0.55, ease: EASE },
+          transition: { delay: 0.3, duration: 0.55, ease: ease },
         }}
         style={{ originY: 0.5 }}
       />
@@ -97,7 +97,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             x: 0,
-            transition: { delay: 0.2, duration: 0.7, ease: EASE },
+            transition: { delay: 0.2, duration: 0.7, ease: ease },
           }}>
           <span className="text-[10px] font-semibold tracking-[0.3em] uppercase text-muted-foreground/70">
             Welcome
@@ -115,7 +115,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             x: 0,
-            transition: { delay: 0.32, duration: 0.7, ease: EASE },
+            transition: { delay: 0.32, duration: 0.7, ease: ease },
           }}>
           <div className="w-8 h-px bg-foreground/25" />
           <p className="text-sm leading-7 tracking-wide text-muted-foreground max-w-sm">
@@ -132,7 +132,7 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
           animate={{
             opacity: 1,
             x: 0,
-            transition: { delay: 0.44, duration: 0.7, ease: EASE },
+            transition: { delay: 0.44, duration: 0.7, ease: ease },
           }}>
           <LiquidButton
             size="lg"

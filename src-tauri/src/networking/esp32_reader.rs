@@ -36,64 +36,66 @@ struct Esp32Packet {
     mid_gamma: Option<u32>,
 }
 
-/// Opens the COM port and streams parsed packets as `tgc-data` events so the
-/// frontend hook (useTgcConnection) needs no changes.
+/// To open the configured COM port and start streaming parsed EEG packets
+/// as `tgc-data` events. Emits `tgc-status` on connect and disconnect so
+/// the frontend hook requires no source-specific branching.
 pub fn run_esp32_reader(ctx: Esp32ReaderCtx) {
-    if ctx.port.is_empty() {
-        eprintln!("[esp32_reader] No port specified.");
-        let _ = ctx.app.emit("tgc-status", "disconnected");
+    let Some(serial_port) = open_serial_port(&ctx) else {
         return;
-    }
+    };
+    let _ = ctx.app.emit("tgc-status", "connected");
+    stream_serial_packets(serial_port, &ctx);
+}
 
-    let port = match serialport::new(&ctx.port, 115_200)
+// To acquire an exclusive handle to the named COM port before streaming
+// begins. Emits a disconnected status event on any failure so the UI
+// reflects the error without requiring the caller to inspect the return value.
+fn open_serial_port(ctx: &Esp32ReaderCtx) -> Option<Box<dyn serialport::SerialPort>> {
+    if ctx.port.is_empty() {
+        eprintln!("[IO] ESP32 reader aborted — no serial port was specified");
+        let _ = ctx.app.emit("tgc-status", "disconnected");
+        return None;
+    }
+    match serialport::new(&ctx.port, 115_200)
         .timeout(Duration::from_millis(500))
         .open()
     {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("[esp32_reader] Failed to open {}: {e}", ctx.port);
+        Ok(serial_port) => Some(serial_port),
+        Err(error) => {
+            eprintln!("[IO] Failed to open serial port {}: {error}", ctx.port);
             let _ = ctx.app.emit("tgc-status", "disconnected");
-            return;
+            None
         }
-    };
+    }
+}
 
-    let _ = ctx.app.emit("tgc-status", "connected");
-
-    // Use read_until instead of lines() to survive non-UTF-8 bytes that
-    // commonly appear in the serial stream during ESP32 boot/reset.
-    let mut reader = BufReader::new(port);
-    let mut buf: Vec<u8> = Vec::with_capacity(256);
+// To consume the serial byte stream line-by-line and forward every complete
+// EEG packet to the frontend. Uses read_until rather than lines() because
+// ESP32 boot sequences can emit non-UTF-8 bytes that would terminate a
+// lines() iterator prematurely.
+fn stream_serial_packets(serial_port: Box<dyn serialport::SerialPort>, ctx: &Esp32ReaderCtx) {
+    let mut reader = BufReader::new(serial_port);
+    let mut line_buffer: Vec<u8> = Vec::with_capacity(256);
 
     loop {
         if ctx.stop_flag.load(Ordering::Relaxed) {
             break;
         }
-
-        buf.clear();
-        match reader.read_until(b'\n', &mut buf) {
+        line_buffer.clear();
+        match reader.read_until(b'\n', &mut line_buffer) {
             Ok(0) => {
-                // EOF — port closed
                 let _ = ctx.app.emit("tgc-status", "disconnected");
                 break;
             }
-            Ok(_) => {
-                // Lossily decode — replaces any invalid bytes with • so we
-                // never crash, and JSON parsing will simply return None.
-                let line = String::from_utf8_lossy(&buf);
-                let line = line.trim();
-                if let Some(payload) = parse_packet(line) {
-                    let _ = ctx.app.emit("tgc-data", payload);
-                }
-            }
-            Err(e)
-                if e.kind() == std::io::ErrorKind::TimedOut
-                    || e.kind() == std::io::ErrorKind::WouldBlock =>
+            Ok(_) => emit_if_complete_packet(&line_buffer, ctx),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::TimedOut
+                    || error.kind() == std::io::ErrorKind::WouldBlock =>
             {
-                // 500 ms read timeout — normal between packets, keep looping.
                 continue;
             }
-            Err(e) => {
-                eprintln!("[esp32_reader] Read error: {e}");
+            Err(error) => {
+                eprintln!("[IO] Serial read error on {}: {error}", ctx.port);
                 let _ = ctx.app.emit("tgc-status", "disconnected");
                 break;
             }
@@ -101,34 +103,47 @@ pub fn run_esp32_reader(ctx: Esp32ReaderCtx) {
     }
 }
 
-/// Returns Some only for full 1 Hz packets that contain all band-power values.
-/// Raw-only packets ({"poorSignal":…,"raw":…}) return None and are skipped.
+// To decode one raw byte line and forward it only when it carries a complete
+// 1 Hz EEG packet. Lossily decodes bytes so non-UTF-8 boot noise becomes
+// harmless placeholder characters that JSON parsing discards.
+fn emit_if_complete_packet(line_buffer: &[u8], ctx: &Esp32ReaderCtx) {
+    let raw_line = String::from_utf8_lossy(line_buffer);
+    let trimmed_line = raw_line.trim();
+    if let Some(eeg_payload) = parse_packet(trimmed_line) {
+        let _ = ctx.app.emit("tgc-data", eeg_payload);
+    }
+}
+
+// To deserialize a raw JSON line into a typed EEG payload. Returns None for
+// heartbeat packets (raw-only) that omit band-power fields — those are normal
+// at 512 Hz and must be silently discarded without breaking the stream.
 fn parse_packet(line: &str) -> Option<EegPayload> {
     if line.is_empty() {
         return None;
     }
-    let pkt: Esp32Packet = serde_json::from_str(line).ok()?;
+    let packet: Esp32Packet = serde_json::from_str(line).ok()?;
 
     Some(EegPayload {
-        delta: pkt.delta?,
-        theta: pkt.theta?,
-        low_alpha: pkt.low_alpha?,
-        high_alpha: pkt.high_alpha?,
-        low_beta: pkt.low_beta?,
-        high_beta: pkt.high_beta?,
-        low_gamma: pkt.low_gamma?,
-        mid_gamma: pkt.mid_gamma?,
-        attention: pkt.attention.unwrap_or(0),
-        meditation: pkt.meditation.unwrap_or(0),
-        poor_signal_level: pkt.poor_signal.unwrap_or(200),
+        delta: packet.delta?,
+        theta: packet.theta?,
+        low_alpha: packet.low_alpha?,
+        high_alpha: packet.high_alpha?,
+        low_beta: packet.low_beta?,
+        high_beta: packet.high_beta?,
+        low_gamma: packet.low_gamma?,
+        mid_gamma: packet.mid_gamma?,
+        attention: packet.attention.unwrap_or(0),
+        meditation: packet.meditation.unwrap_or(0),
+        poor_signal_level: packet.poor_signal.unwrap_or(200),
     })
 }
 
-/// Returns the names of all available serial ports on this machine.
+/// To enumerate all serial ports currently visible to the OS and return
+/// their names so the UI can populate a port-selection dropdown.
 pub fn available_ports() -> Vec<String> {
     serialport::available_ports()
         .unwrap_or_default()
         .into_iter()
-        .map(|p| p.port_name)
+        .map(|port_info| port_info.port_name)
         .collect()
 }

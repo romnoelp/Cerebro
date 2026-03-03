@@ -2,6 +2,7 @@ import * as React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { type TgcBandData, type TgcStatus } from "@/types";
+import { logger } from "@/lib/logger";
 
 /** Selects where EEG data comes from. */
 export type EegSource = { type: "tgc" } | { type: "esp32"; port: string };
@@ -76,13 +77,17 @@ export function useTgcConnection(
       sourceType === "esp32"
         ? invoke("start_esp32", { port: esp32Port })
         : invoke("start_tgc");
-    const stopCmd = () =>
+    const stopActiveReader = () =>
       sourceType === "esp32"
-        ? invoke("stop_esp32").catch(console.error)
-        : invoke("stop_tgc").catch(console.error);
+        ? invoke("stop_esp32").catch((error) =>
+            logger.ioError("stop_esp32 failed", error),
+          )
+        : invoke("stop_tgc").catch((error) =>
+            logger.ioError("stop_tgc failed", error),
+          );
 
     if (!active) {
-      stopCmd();
+      stopActiveReader();
       setLiveData(undefined);
       setRawData(undefined);
       setIsConnected(false);
@@ -90,24 +95,23 @@ export function useTgcConnection(
       return;
     }
 
-    startCmd.catch(console.error);
+    startCmd.catch((error) => logger.ioError("Reader start failed", error));
 
     let unlistenData: UnlistenFn | undefined;
     let unlistenStatus: UnlistenFn | undefined;
 
-    // ~1 Hz from TGAM chip; delivers raw band powers, normalized on acceptance.
     listen<TgcBandData>("tgc-data", (event) => {
-      const payload = event.payload;
-      setPoorSignalLevel(payload.poorSignalLevel);
-      if (payload.poorSignalLevel < 50) {
-        setRawData(payload);
-        setLiveData(normalizeBandPowers(payload));
+      const eegPacket = event.payload;
+      setPoorSignalLevel(eegPacket.poorSignalLevel);
+      if (eegPacket.poorSignalLevel < 50) {
+        setRawData(eegPacket);
+        setLiveData(normalizeBandPowers(eegPacket));
       }
     })
-      .then((fn) => {
-        unlistenData = fn;
+      .then((unlistener) => {
+        unlistenData = unlistener;
       })
-      .catch(console.error);
+      .catch((error) => logger.ioError("tgc-data listener failed", error));
 
     listen<TgcStatus>("tgc-status", (event) => {
       setIsConnected(event.payload === "connected");
@@ -116,15 +120,15 @@ export function useTgcConnection(
         setRawData(undefined);
       }
     })
-      .then((fn) => {
-        unlistenStatus = fn;
+      .then((unlistener) => {
+        unlistenStatus = unlistener;
       })
-      .catch(console.error);
+      .catch((error) => logger.ioError("tgc-status listener failed", error));
 
     return () => {
       unlistenData?.();
       unlistenStatus?.();
-      stopCmd();
+      stopActiveReader();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sourceType, esp32Port]);

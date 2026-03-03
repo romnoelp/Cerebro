@@ -5,7 +5,8 @@ import { sileo } from "sileo";
 import { type FocusPrediction, type TgcBandData } from "@/types";
 import { IconClockHour3, IconBrain, IconDatabase } from "@tabler/icons-react";
 import { motion } from "motion/react";
-import { EASE } from "@/lib/constants";
+import { ease } from "@/lib/constants";
+import { logger } from "@/lib/logger";
 import { ChartLineInteractive } from "@/components/chart-line-interactive";
 import { cn } from "@/lib/utils";
 import { requiredModels } from "./session/constants";
@@ -55,14 +56,13 @@ const SessionScreen = () => {
 
   const loadPorts = React.useCallback(() => {
     invoke<string[]>("list_serial_ports")
-      .then((ports) => {
-        setAvailablePorts(ports);
-        // Auto-select the first port if none is chosen yet.
-        setEsp32Port((prev) =>
-          prev === "" && ports.length > 0 ? ports[0] : prev,
+      .then((serialPorts) => {
+        setAvailablePorts(serialPorts);
+        setEsp32Port((previous) =>
+          previous === "" && serialPorts.length > 0 ? serialPorts[0] : previous,
         );
       })
-      .catch(console.error);
+      .catch((error) => logger.ioError("list_serial_ports failed", error));
   }, []);
 
   // Populate port list once on mount so it’s ready when the user picks ESP32.
@@ -81,7 +81,7 @@ const SessionScreen = () => {
     source,
   );
   const recorder = useSessionRecorder();
-  const addSession = useSessionStore((s) => s.addSession);
+  const addSession = useSessionStore((store) => store.addSession);
   const {
     calibrationStep,
     showStartButton,
@@ -162,8 +162,8 @@ const SessionScreen = () => {
     }
   }, [isScanning, isConnected]);
 
-  // Runs inference when the model is ready; records label -1 when it is not,
-  // so no EEG packet is silently dropped.
+  // To record the focus label alongside the raw EEG packet. When the model is
+  // not yet loaded, label -1 is stored so no packet is silently dropped.
   const recordEegPacket = (eegPayload: TgcBandData) => {
     if (modelReady) {
       invoke<FocusPrediction>("get_focus_prediction", { payload: eegPayload })
@@ -174,11 +174,11 @@ const SessionScreen = () => {
     }
   };
 
-  // Record one row per accepted TGC packet while the session is active.
   React.useEffect(() => {
     if (!isScanning || !rawData) return;
     recordEegPacket(rawData);
-    // rawData reference changes on every new packet — that's the intended trigger.
+    // rawData object reference changes on every new TGC packet — that is the
+    // intended trigger; suppressing the exhaustive-deps warning is deliberate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawData]);
 
@@ -189,6 +189,49 @@ const SessionScreen = () => {
     : poorSignalLevel >= 200
       ? "Connected but no headset was detected. Turn on the headset and make sure it is properly worn."
       : "Headset connected but signal quality is poor. Adjust the headband and try again.";
+
+  /** To clear all session state after the recording ends without any data to save. */
+  const resetAfterSession = () => {
+    recorder.clear();
+    resetTimer();
+    setSubjectName("");
+    setHasStarted(false);
+    setShouldResetChart(true);
+  };
+
+  /**
+   * To write the accumulated CSV to disk and append the session summary to
+   * the local index. Returns true on success so callers can perform
+   * source-specific teardown (e.g. stopping the scanner) only on success.
+   */
+  const persistAndResetSession = async (
+    successTitle: string,
+  ): Promise<boolean> => {
+    const selectedPath = await save({
+      filters: [{ name: "CSV Data", extensions: ["csv"] }],
+      defaultPath: buildExportFilename(subjectName),
+    });
+    if (!selectedPath) return false;
+
+    const csvPath = selectedPath as string;
+    const summary = recorder.buildSummary({
+      subjectName,
+      durationSecs: elapsed,
+      csvPath,
+    });
+
+    await invoke("save_session", {
+      request: { csvPath, csvContent: recorder.buildCsv(), summary },
+    });
+    addSession(summary);
+    resetAfterSession();
+
+    sileo.success({
+      title: successTitle,
+      description: `Saved to ${csvPath.split(/[\\/]/).pop()}.`,
+    });
+    return true;
+  };
 
   const handleStopScanning = () => {
     setIsScanning(false);
@@ -202,44 +245,13 @@ const SessionScreen = () => {
     setShowDisconnectDialog(false);
     wasConnectedRef.current = false;
     if (recorder.rowCount === 0) {
-      // Nothing to save — just reset.
-      recorder.clear();
-      resetTimer();
-      setSubjectName("");
-      setHasStarted(false);
-      setShouldResetChart(true);
+      resetAfterSession();
       return;
     }
     try {
-      const path = await save({
-        filters: [{ name: "CSV Data", extensions: ["csv"] }],
-        defaultPath: buildExportFilename(subjectName),
-      });
-      if (!path) return;
-
-      const summary = recorder.buildSummary(
-        subjectName,
-        elapsed,
-        path as string,
-      );
-      await invoke("save_session", {
-        csvPath: path,
-        csvContent: recorder.buildCsv(),
-        summary,
-      });
-      addSession(summary);
-
-      recorder.clear();
-      resetTimer();
-      setSubjectName("");
-      setHasStarted(false);
-      setShouldResetChart(true);
-
-      sileo.success({
-        title: "Session saved",
-        description: `Saved to ${(path as string).split(/[\\/]/).pop()}.`,
-      });
-    } catch {
+      await persistAndResetSession("Session saved");
+    } catch (error) {
+      logger.ioError("Disconnect save failed", error);
       sileo.error({
         title: "Export failed",
         description: "An error occurred while saving the file.",
@@ -249,38 +261,10 @@ const SessionScreen = () => {
 
   const handleExport = async () => {
     try {
-      const path = await save({
-        filters: [{ name: "CSV Data", extensions: ["csv"] }],
-        defaultPath: buildExportFilename(subjectName),
-      });
-      if (!path) return;
-
-      const summary = recorder.buildSummary(
-        subjectName,
-        elapsed,
-        path as string,
-      );
-
-      await invoke("save_session", {
-        csvPath: path,
-        csvContent: recorder.buildCsv(),
-        summary,
-      });
-
-      addSession(summary);
-
-      recorder.clear();
-      resetTimer();
-      setSubjectName("");
-      setHasStarted(false);
-      setIsScanning(false);
-      setShouldResetChart(true);
-
-      sileo.success({
-        title: "Data exported",
-        description: `Saved to ${(path as string).split(/[\\/]/).pop()}. All data cleared.`,
-      });
-    } catch {
+      const saved = await persistAndResetSession("Data exported");
+      if (saved) setIsScanning(false);
+    } catch (error) {
+      logger.ioError("Export failed", error);
       sileo.error({
         title: "Export failed",
         description: "An error occurred while saving the file.",
@@ -294,7 +278,7 @@ const SessionScreen = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}>
+      transition={{ duration: 0.3, ease: ease }}>
       <div className="@container/main flex flex-col gap-2 flex-1 min-h-0">
         <div className="flex flex-col gap-2 py-2 pb-2 flex-1 min-h-0">
           <div className="flex items-end justify-between px-4 lg:px-6 shrink-0">
@@ -389,10 +373,11 @@ const SessionScreen = () => {
               liveData={liveData}
               className="flex-1 min-h-0"
             />
-            <div className={cn(
-              "flex flex-col gap-3",
-              sourceType === "esp32" ? "overflow-y-auto" : "h-full",
-            )}>
+            <div
+              className={cn(
+                "flex flex-col gap-3",
+                sourceType === "esp32" ? "overflow-y-auto" : "h-full",
+              )}>
               <ModelManagementCard
                 loadedModels={loadedModels}
                 modelReady={modelReady}

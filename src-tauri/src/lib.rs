@@ -25,16 +25,19 @@ impl HeadsetState {
     pub fn is_running(&self) -> bool {
         self.thread
             .as_ref()
-            .map(|t| !t.is_finished())
+            .map(|thread_handle| !thread_handle.is_finished())
             .unwrap_or(false)
     }
 
-    // Clears the stop flag so the next session starts with a fresh signal.
+    /// To prepare the state for a new session by issuing a fresh stop flag.
+    /// Must be called before spawning the reader thread so the old flag's
+    /// residual `true` value cannot immediately halt the new thread.
     pub fn reset(&mut self) {
         self.stop_flag = Arc::new(AtomicBool::new(false));
         self.thread = None;
     }
 
+    /// To request a graceful shutdown of the active reader thread.
     pub fn stop(&mut self) {
         self.stop_flag.store(true, Ordering::Relaxed);
         // Dropping the handle without joining lets the thread finish its current
@@ -53,23 +56,25 @@ impl Default for HeadsetState {
 }
 
 pub type HeadsetStateGuard = Mutex<HeadsetState>;
-/// Separate state for the ESP32 serial reader — same structure, different key.
+/// Separate state for the ESP32 serial reader — same structure, different Tauri key.
 pub type Esp32StateGuard = Mutex<HeadsetState>;
 
-// Arc so load_model_files can replace the inner Option without cloning state
-// out of the Tauri manager.
+// Arc is required so load_model_files can replace the inner Option atomically
+// without cloning the state handle out of the Tauri manager.
 pub type ModelManagerState = Arc<Mutex<Option<ModelManager>>>;
 
-// ── Entry point ──────────────────────────────────────────────────────────────
+// ── Entry point ───────────────────────────────────────────────────────────────────────────
 
+/// To initialize all shared application state and register every Tauri
+/// command before handing control to the event loop.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            // ModelManager starts as None — the user loads the files via the
-            // Model Setup card in the Session screen, which calls load_model_files.
+            // ModelManager starts as None — the user loads files via the Model
+            // Setup card, which calls load_model_files to populate it at runtime.
             app.manage(Arc::new(Mutex::new(None::<ModelManager>)) as ModelManagerState);
             app.manage(Mutex::new(HeadsetState::default()) as HeadsetStateGuard);
             app.manage(Mutex::new(HeadsetState::default()) as Esp32StateGuard);

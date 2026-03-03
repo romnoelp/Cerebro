@@ -166,7 +166,7 @@ export function SectionCards({ sessions }: Props) {
           </div>
           <div className="text-muted-foreground text-xs">
             {sessions.length > 0
-              ? `${mean(sessions.map((s) => s.durationSecs / 60)).toFixed(1)} min avg duration`
+              ? `${mean(sessions.map((session) => session.durationSecs / 60)).toFixed(1)} min avg duration`
               : "Export a session to populate"}
           </div>
         </CardFooter>

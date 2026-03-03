@@ -8,8 +8,8 @@ export const useSessionTimer = (isScanning: boolean) => {
   useEffect(() => {
     if (!isScanning) return;
     const intervalId = setInterval(() => {
-      setElapsed((s) => s + 1);
-      setSampleCount((s) => s + 512);
+      setElapsed((previous) => previous + 1);
+      setSampleCount((previous) => previous + 512);
     }, 1000);
     return () => clearInterval(intervalId);
   }, [isScanning]);

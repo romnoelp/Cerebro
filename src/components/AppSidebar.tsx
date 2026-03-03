@@ -53,18 +53,18 @@ const data = {
   ],
 };
 
-const HINT_KEY = "cerebro:logo-hint-seen";
+const hintKey = "cerebro:logo-hint-seen";
 
 const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
   const [hintSeen, setHintSeen] = React.useState<boolean>(
-    () => localStorage.getItem(HINT_KEY) === "1",
+    () => localStorage.getItem(hintKey) === "1",
   );
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
   const dismissHint = React.useCallback(() => {
     if (!hintSeen) {
-      localStorage.setItem(HINT_KEY, "1");
+      localStorage.setItem(hintKey, "1");
       setHintSeen(true);
     }
   }, [hintSeen]);
@@ -87,7 +87,7 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <PreviewCard openDelay={200} closeDelay={150}>
+            <PreviewCard>
               <PreviewCardTrigger
                 render={
                   <SidebarMenuButton
@@ -98,7 +98,10 @@ const AppSidebar = ({ selected, onSelect, ...props }: AppSidebarProps) => {
                       {!hintSeen && (
                         <motion.span
                           className="absolute inline-flex size-7 rounded-full border border-foreground/40"
-                          animate={{ scale: [1, 1.55, 1], opacity: [0.7, 0, 0.7] }}
+                          animate={{
+                            scale: [1, 1.55, 1],
+                            opacity: [0.7, 0, 0.7],
+                          }}
                           transition={{
                             duration: 2,
                             ease: "easeInOut",

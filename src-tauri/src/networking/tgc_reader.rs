@@ -22,6 +22,10 @@ pub struct ReaderContext {
     pub stop_flag: Arc<AtomicBool>,
 }
 
+/// To maintain a persistent TCP connection to a running ThinkGear Connector
+/// process and forward each complete EEG packet as a `tgc-data` event.
+/// Retries automatically on disconnection so the app recovers when TGC is
+/// restarted without requiring user intervention.
 pub fn run_tgc_reader(ctx: ReaderContext) {
     let Some(stream) = try_connect(&ctx) else {
         return;
@@ -34,22 +38,25 @@ pub fn run_tgc_reader(ctx: ReaderContext) {
             break;
         }
         let line = match result {
-            Ok(l) => l,
-            // Timeouts are expected between 1 Hz packets — keep looping.
-            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => continue,
+            Ok(line) => line,
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                continue
+            }
             Err(_) => {
                 let _ = ctx.app.emit("tgc-status", "disconnected");
                 break;
             }
         };
-        let Some(payload) = parse_packet(&line) else {
+        let Some(eeg_payload) = parse_packet(&line) else {
             continue;
         };
-        let _ = ctx.app.emit("tgc-data", payload);
+        let _ = ctx.app.emit("tgc-data", eeg_payload);
     }
 }
 
-// Retries every 2 s so the app recovers automatically when TGC is restarted.
+// To keep retrying the TCP connection until one succeeds or the stop flag is
+// raised. A 2 s sleep between attempts avoids busy-looping while TGC is
+// starting, and a disconnected event on each failure lets the UI stay current.
 fn try_connect(ctx: &ReaderContext) -> Option<TcpStream> {
     loop {
         if ctx.stop_flag.load(Ordering::Relaxed) {
@@ -75,7 +82,9 @@ fn handshake(stream: &TcpStream, ctx: &ReaderContext) {
     let _ = ctx.app.emit("tgc-status", "connected");
 }
 
-// Returns None for heartbeat and status packets that carry no band-power data.
+// To deserialize one line of TGC JSON and extract only packets that carry a
+// complete `eegPower` block. Heartbeat and status-only packets return None
+// and are silently skipped, which is the expected protocol behavior.
 pub fn parse_packet(line: &str) -> Option<EegPayload> {
     if line.is_empty() {
         return None;
