@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "motion/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -20,8 +19,6 @@ interface SessionControlsCardProps {
   onStopScanning: () => void;
   onExport: () => void;
   // EEG source selection
-  sourceType: "tgc" | "esp32";
-  onSourceTypeChange: (type: "tgc" | "esp32") => void;
   esp32Port: string;
   onEsp32PortChange: (port: string) => void;
   availablePorts: string[];
@@ -35,8 +32,6 @@ export const SessionControlsCard = ({
   onStartScanning,
   onStopScanning,
   onExport,
-  sourceType,
-  onSourceTypeChange,
   esp32Port,
   onEsp32PortChange,
   availablePorts,
@@ -86,80 +81,40 @@ export const SessionControlsCard = ({
           <span className="text-[10px] text-muted-foreground/50 font-medium uppercase tracking-widest px-0.5">
             Source
           </span>
-          <div className="flex gap-1 relative">
-            {(["tgc", "esp32"] as const).map((type) => (
-              <button
-                key={type}
-                disabled={!canChangeSource}
-                onClick={() => canChangeSource && onSourceTypeChange(type)}
-                className={cn(
-                  "relative flex-1 rounded-md border px-2 py-1 text-[10px] font-mono tracking-wider transition-colors duration-200 overflow-hidden",
-                  sourceType === type
-                    ? "border-foreground/40 text-foreground/80"
-                    : "border-border/30 bg-transparent text-muted-foreground/50 hover:bg-foreground/5",
-                  !canChangeSource && "opacity-40 cursor-not-allowed",
-                )}>
-                {sourceType === type && (
-                  <motion.span
-                    layoutId="source-pill"
-                    className="absolute inset-0 bg-foreground/10 rounded-md"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10">
-                  {type === "tgc" ? "ThinkGear" : "ESP32 USB"}
-                </span>
-              </button>
-            ))}
+          {/* COM port picker */}
+          <div className="flex gap-1">
+            <Select
+              value={esp32Port}
+              onValueChange={onEsp32PortChange}
+              disabled={!canChangeSource || availablePorts.length === 0}>
+              <SelectTrigger className="h-7 text-[11px] flex-1 border-border/40 bg-background/20">
+                <SelectValue
+                  placeholder={
+                    availablePorts.length === 0
+                      ? "No ports found"
+                      : "Select COM port"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {availablePorts.map((p) => (
+                  <SelectItem key={p} value={p} className="text-xs">
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <button
+              onClick={onRefreshPorts}
+              disabled={!canChangeSource}
+              title="Refresh port list"
+              className={cn(
+                "flex size-7 shrink-0 items-center justify-center rounded-md border border-border/40 bg-background/20 text-[10px] text-muted-foreground/70 transition-all hover:bg-foreground/10",
+                !canChangeSource && "opacity-40 cursor-not-allowed",
+              )}>
+              ↻
+            </button>
           </div>
-
-          {/* COM port picker (ESP32 only) */}
-          <AnimatePresence initial={false}>
-            {sourceType === "esp32" && (
-            <motion.div
-              key="esp32-port-picker"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-            <div className="flex gap-1 mt-0.5">
-              <Select
-                value={esp32Port}
-                onValueChange={onEsp32PortChange}
-                disabled={!canChangeSource || availablePorts.length === 0}>
-                <SelectTrigger className="h-7 text-[11px] flex-1 border-border/40 bg-background/20">
-                  <SelectValue
-                    placeholder={
-                      availablePorts.length === 0
-                        ? "No ports found"
-                        : "Select COM port"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePorts.map((p) => (
-                    <SelectItem key={p} value={p} className="text-xs">
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <button
-                onClick={onRefreshPorts}
-                disabled={!canChangeSource}
-                title="Refresh port list"
-                className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-md border border-border/40 bg-background/20 text-[10px] text-muted-foreground/70 transition-all hover:bg-foreground/10",
-                  !canChangeSource && "opacity-40 cursor-not-allowed",
-                )}>
-                ↻
-              </button>
-            </div>
-            </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
         <div className="h-px bg-border/40 my-0.5" />

@@ -1,6 +1,6 @@
-import { type AppFile } from "../types";
+import { type AppFile } from "@/domain";
 
-export type { AppFile } from "../types";
+export type { AppFile } from "@/domain";
 
 export const fileLabels: Record<AppFile, string> = {
   session: "Session",

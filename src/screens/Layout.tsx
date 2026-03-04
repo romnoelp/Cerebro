@@ -15,7 +15,7 @@ import {
   SidebarProvider,
   SidebarInset,
 } from "@/components/animate-ui/components/radix/sidebar";
-import { useSessionStore } from "@/lib/useSessionStore";
+import { useSessionStore } from "@/adapters/useSessionStore";
 import { logger } from "@/lib/logger";
 
 const screenComponents: Record<AppFile, React.ComponentType> = {

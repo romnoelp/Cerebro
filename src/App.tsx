@@ -30,7 +30,7 @@ const App = () => {
 
   // Resize the window to a fraction of the current monitor's resolution.
   React.useEffect(() => {
-    async function fitToMonitor() {
+    const fitToMonitor = async () => {
       try {
         const monitor = await currentMonitor();
         if (!monitor) return;
@@ -49,7 +49,7 @@ const App = () => {
       } catch {
         // Running outside Tauri (browser preview) — skip.
       }
-    }
+    };
     fitToMonitor();
   }, []);
 

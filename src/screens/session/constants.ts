@@ -1,28 +1,11 @@
-export const requiredModels = [
-  {
-    key: "onnx" as const,
-    filename: "cerebro_unified.onnx",
-    label: "ONNX Inference Model",
-    description: "Unified TCN+DDQN ONNX export",
-    ext: "onnx",
-  },
-  {
-    key: "scaler" as const,
-    filename: "scaler_params.json",
-    label: "Signal Scaler",
-    description: "StandardScaler parameters (JSON)",
-    ext: "json",
-  },
-] as const;
+// Re-exported from their canonical adapter/use-case locations.
+// Prefer importing directly from @/adapters/modelConfig or @/use_cases/useCalibration.
+export {
+  REQUIRED_MODEL_DEFINITIONS as requiredModels,
+  type ModelKey,
+  type ModelDefinition as ModelDef,
+} from "@/adapters/modelConfig";
 
-export type ModelKey = (typeof requiredModels)[number]["key"];
-export type ModelDef = (typeof requiredModels)[number];
-
-export const calibrationSteps = [
-  "Participant seated comfortably...",
-  "Checking signal integrity...",
-  "Baseline calibration in progress...",
-  "System ready for acquisition",
-];
+export { CALIBRATION_STEP_LABELS as calibrationSteps } from "@/use_cases/useCalibration";
 
 export const stepDuration = 1400;

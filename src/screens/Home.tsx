@@ -77,6 +77,16 @@ export const HomeScreen = ({ onStart }: HomeScreenProps) => {
             System Ready
           </span>
         </motion.div>
+
+        <motion.span
+          className="text-xs font-mono tracking-widest text-muted-foreground/70 select-none -mt-3"
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: 1,
+            transition: { delay: 0.6, duration: 0.6, ease: ease },
+          }}>
+          v{__APP_VERSION__}
+        </motion.span>
       </div>
 
       <motion.div

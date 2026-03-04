@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import { SectionCards } from "@/components/section-cards";
 import { ease } from "@/lib/constants";
-import { useSessionStore } from "@/lib/useSessionStore";
+import { useSessionStore } from "@/adapters/useSessionStore";
 
 const DashboardScreen = () => {
   const sessions = useSessionStore((store) => store.sessions);

@@ -1,3 +1,2 @@
-export type Screen = "home" | "loading" | "session";
-
-export type AppFile = "session" | "dashboard";
+// Re-exported from the domain layer for backward compatibility.
+export type { Screen, AppFile } from "@/domain";

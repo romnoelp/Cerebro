@@ -1,29 +1,32 @@
 import * as React from "react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { invoke } from "@tauri-apps/api/core";
 import { sileo } from "sileo";
-import { type FocusPrediction, type TgcBandData } from "@/types";
+import { type FocusReading, type EegBandPowers } from "@/domain";
 import { IconClockHour3, IconBrain, IconDatabase } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { ease } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { ChartLineInteractive } from "@/components/chart-line-interactive";
 import { cn } from "@/lib/utils";
-import { requiredModels } from "./session/constants";
+import { REQUIRED_MODEL_DEFINITIONS } from "@/adapters/modelConfig";
 import {
   formatElapsed,
   formatSamples,
   buildExportFilename,
 } from "./session/utils";
-import { useSessionStore } from "@/lib/useSessionStore";
-import { useSessionTimer } from "./session/hooks/useSessionTimer";
-import { useModelLoader } from "./session/hooks/useModelLoader";
-import { useCalibration } from "./session/hooks/useCalibration";
+import { useSessionStore } from "@/adapters/useSessionStore";
+import { useHeadsetStore } from "@/adapters/useHeadsetStore";
+import { useModelStore } from "@/adapters/useModelStore";
+import { createTauriClassifier } from "@/adapters/tauriClassifierAdapter";
+import { createTauriSessionRepository } from "@/adapters/tauriSessionAdapter";
+import { listAvailableSerialPorts } from "@/adapters/tauriHeadsetAdapter";
+import { useSessionTimer } from "@/use_cases/useSessionTimer";
+import { useCalibration } from "@/use_cases/useCalibration";
 import {
-  useTgcConnection,
-  type EegSource,
-} from "./session/hooks/useTgcConnection";
-import { useSessionRecorder } from "./session/hooks/useSessionRecorder";
+  useEegListener,
+  type EegSourceConfig,
+} from "@/use_cases/useEegListener";
+import { useSessionRecorder } from "@/use_cases/useSessionRecorder";
 import { StatCard } from "./session/components/StatCard";
 import { ModelManagementCard } from "./session/components/ModelManagementCard";
 import { SessionControlsCard } from "./session/components/SessionControlsCard";
@@ -31,10 +34,18 @@ import { SubjectNameDialog } from "./session/components/SubjectNameDialog";
 import { CalibrationDialog } from "./session/components/CalibrationDialog";
 import { DisconnectDialog } from "./session/components/DisconnectDialog";
 
+const focusClassifier = createTauriClassifier();
+const sessionRepository = createTauriSessionRepository();
+
 const SessionScreen = () => {
-  const [isScanning, setIsScanning] = React.useState(false);
-  const [hasStarted, setHasStarted] = React.useState(false);
-  const [subjectName, setSubjectName] = React.useState("");
+  // Persistent across screen navigation — backed by Zustand so navigating away
+  // and back does not lose an in-progress session or reset the model state.
+  const isScanning = useHeadsetStore((s) => s.isScanning);
+  const setIsScanning = useHeadsetStore((s) => s.setIsScanning);
+  const hasSessionStarted = useHeadsetStore((s) => s.hasSessionStarted);
+  const setHasSessionStarted = useHeadsetStore((s) => s.setHasSessionStarted);
+  const subjectName = useHeadsetStore((s) => s.subjectName);
+  const setSubjectName = useHeadsetStore((s) => s.setSubjectName);
   const [showNameDialog, setShowNameDialog] = React.useState(false);
   const [showCalibrationDialog, setShowCalibrationDialog] =
     React.useState(false);
@@ -45,17 +56,13 @@ const SessionScreen = () => {
   const wasConnectedRef = React.useRef(false);
 
   // ── EEG source selection ──────────────────────────────────────
-  const [sourceType, setSourceType] = React.useState<"tgc" | "esp32">("tgc");
   const [esp32Port, setEsp32Port] = React.useState("");
   const [availablePorts, setAvailablePorts] = React.useState<string[]>([]);
 
-  const source: EegSource =
-    sourceType === "esp32"
-      ? { type: "esp32", port: esp32Port }
-      : { type: "tgc" };
+  const eegSource: EegSourceConfig = { type: "esp32", portName: esp32Port };
 
   const loadPorts = React.useCallback(() => {
-    invoke<string[]>("list_serial_ports")
+    listAvailableSerialPorts()
       .then((serialPorts) => {
         setAvailablePorts(serialPorts);
         setEsp32Port((previous) =>
@@ -71,15 +78,15 @@ const SessionScreen = () => {
   }, [loadPorts]);
 
   const {
-    elapsed,
-    sampleCount,
+    elapsedSeconds,
+    estimatedSampleCount,
     reset: resetTimer,
   } = useSessionTimer(isScanning);
-  const { loadedModels, modelReady, handleLoadModel } = useModelLoader();
-  const { liveData, rawData, isConnected, poorSignalLevel } = useTgcConnection(
-    isScanning || showCalibrationDialog,
-    source,
-  );
+  const stagedModelMap = useModelStore((s) => s.stagedModelMap);
+  const modelReady = useModelStore((s) => s.modelReady);
+  const handleLoadModel = useModelStore((s) => s.handleLoadModel);
+  const { displayBandPowers, rawBandPowers, isConnected, poorSignalLevel } =
+    useEegListener(isScanning || showCalibrationDialog, eegSource);
   const recorder = useSessionRecorder();
   const addSession = useSessionStore((store) => store.addSession);
   const {
@@ -94,7 +101,7 @@ const SessionScreen = () => {
   });
 
   const handleStartScanning = () => {
-    if (hasStarted) {
+    if (hasSessionStarted) {
       setIsScanning(true);
       sileo.success({
         title: "Scanning resumed",
@@ -136,7 +143,7 @@ const SessionScreen = () => {
     setShowCalibrationDialog(false);
     setShouldResetChart(true);
     setIsScanning(true);
-    setHasStarted(true);
+    setHasSessionStarted(true);
     sileo.success({
       title: "Scanning started",
       description: `Live EEG acquisition for ${subjectName} is active.`,
@@ -164,38 +171,39 @@ const SessionScreen = () => {
 
   // To record the focus label alongside the raw EEG packet. When the model is
   // not yet loaded, label -1 is stored so no packet is silently dropped.
-  const recordEegPacket = (eegPayload: TgcBandData) => {
+  const recordEegPacket = (bandPowers: EegBandPowers) => {
     if (modelReady) {
-      invoke<FocusPrediction>("get_focus_prediction", { payload: eegPayload })
-        .then((prediction) => recorder.record(eegPayload, prediction))
-        .catch(() => recorder.record(eegPayload, undefined));
+      focusClassifier
+        .classify(bandPowers)
+        .then((focusReading: FocusReading) =>
+          recorder.appendEegRecord(bandPowers, focusReading),
+        )
+        .catch(() => recorder.appendEegRecord(bandPowers, undefined));
     } else {
-      recorder.record(eegPayload, undefined);
+      recorder.appendEegRecord(bandPowers, undefined);
     }
   };
 
   React.useEffect(() => {
-    if (!isScanning || !rawData) return;
-    recordEegPacket(rawData);
-    // rawData object reference changes on every new TGC packet — that is the
+    if (!isScanning || !rawBandPowers) return;
+    recordEegPacket(rawBandPowers);
+    // rawBandPowers reference changes on every new TGC packet — that is the
     // intended trigger; suppressing the exhaustive-deps warning is deliberate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawData]);
+  }, [rawBandPowers]);
 
   const signalMessage = !isConnected
-    ? sourceType === "esp32"
-      ? "Could not open the serial port. Make sure the ESP32 is connected via USB and the correct COM port is selected."
-      : "Could not reach ThinkGear Connector. Ensure it is running before starting a session."
+    ? "Could not open the serial port. Make sure the ESP32 is connected via USB and the correct COM port is selected."
     : poorSignalLevel >= 200
       ? "Connected but no headset was detected. Turn on the headset and make sure it is properly worn."
       : "Headset connected but signal quality is poor. Adjust the headband and try again.";
 
   /** To clear all session state after the recording ends without any data to save. */
   const resetAfterSession = () => {
-    recorder.clear();
+    recorder.clearRecording();
     resetTimer();
     setSubjectName("");
-    setHasStarted(false);
+    setHasSessionStarted(false);
     setShouldResetChart(true);
   };
 
@@ -214,14 +222,16 @@ const SessionScreen = () => {
     if (!selectedPath) return false;
 
     const csvPath = selectedPath as string;
-    const summary = recorder.buildSummary({
+    const summary = recorder.buildSessionSummary({
       subjectName,
-      durationSecs: elapsed,
+      durationSecs: elapsedSeconds,
       csvPath,
     });
 
-    await invoke("save_session", {
-      request: { csvPath, csvContent: recorder.buildCsv(), summary },
+    await sessionRepository.saveSession({
+      csvPath,
+      csvContent: recorder.buildCsvString(),
+      summary,
     });
     addSession(summary);
     resetAfterSession();
@@ -310,9 +320,7 @@ const SessionScreen = () => {
                         : poorSignalLevel >= 200
                           ? "No Headset"
                           : "Poor Signal"
-                      : sourceType === "esp32"
-                        ? "No ESP32"
-                        : "No TGC"}
+                      : "No ESP32"}
                   </span>
                 </div>
               )}
@@ -340,13 +348,13 @@ const SessionScreen = () => {
             <StatCard
               icon={<IconClockHour3 className="size-3.5" />}
               label="Elapsed"
-              value={formatElapsed(elapsed)}
+              value={formatElapsed(elapsedSeconds)}
               isActive={isScanning}
             />
             <StatCard
               icon={<IconDatabase className="size-3.5" />}
               label="Samples"
-              value={formatSamples(sampleCount)}
+              value={formatSamples(estimatedSampleCount)}
               isActive={isScanning}
             />
             <StatCard
@@ -354,9 +362,9 @@ const SessionScreen = () => {
               label="Models"
               value={
                 <>
-                  {Object.values(loadedModels).filter(Boolean).length}
+                  {Object.values(stagedModelMap).filter(Boolean).length}
                   <span className="text-sm font-normal text-muted-foreground/60">
-                    /{requiredModels.length}
+                    /{REQUIRED_MODEL_DEFINITIONS.length}
                   </span>
                 </>
               }
@@ -369,35 +377,24 @@ const SessionScreen = () => {
             <ChartLineInteractive
               isRunning={isScanning}
               shouldReset={shouldResetChart}
-              hasStarted={hasStarted}
-              liveData={liveData}
+              hasStarted={hasSessionStarted}
+              liveData={displayBandPowers}
               className="flex-1 min-h-0"
             />
-            <div
-              className={cn(
-                "flex flex-col gap-3",
-                sourceType === "esp32" ? "overflow-y-auto" : "h-full",
-              )}>
+            <div className={cn("flex flex-col gap-3", "overflow-y-auto")}>
               <ModelManagementCard
-                loadedModels={loadedModels}
+                loadedModels={stagedModelMap}
                 modelReady={modelReady}
                 onLoadModel={handleLoadModel}
               />
 
               <SessionControlsCard
                 isScanning={isScanning}
-                hasStarted={hasStarted}
-                allLoaded={
-                  modelReady && (sourceType !== "esp32" || esp32Port !== "")
-                }
+                hasStarted={hasSessionStarted}
+                allLoaded={modelReady && esp32Port !== ""}
                 onStartScanning={handleStartScanning}
                 onStopScanning={handleStopScanning}
                 onExport={handleExport}
-                sourceType={sourceType}
-                onSourceTypeChange={(type) => {
-                  setSourceType(type);
-                  if (type === "esp32") loadPorts();
-                }}
                 esp32Port={esp32Port}
                 onEsp32PortChange={setEsp32Port}
                 availablePorts={availablePorts}
