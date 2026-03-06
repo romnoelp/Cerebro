@@ -23,7 +23,7 @@ import { Sun } from "@/components/animate-ui/icons/sun";
 import { Moon } from "@/components/animate-ui/icons/moon";
 import { LayoutDashboard } from "@/components/animate-ui/icons/layout-dashboard";
 import { ChartSpline } from "@/components/animate-ui/icons/chart-spline";
-import { type AppFile } from "@/types";
+import { type AppFile } from "@/domain";
 
 interface AppSidebarProps extends Omit<
   React.ComponentProps<typeof Sidebar>,

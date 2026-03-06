@@ -14,6 +14,13 @@ export type EegSourceConfig =
 
 const POOR_SIGNAL_REJECTION_THRESHOLD = 50;
 
+// If no EEG packet arrives within this window while the reader is active,
+// the headset has likely powered off (ESP32 stays connected via USB but stops
+// emitting JSON when its Bluetooth link to the headset drops). We synthesize
+// poorSignalLevel = 200 so the signal monitor can react without waiting for a
+// packet that will never come.
+const PACKET_TIMEOUT_MS = 2500;
+
 // To convert raw µV² band powers to relative percentages (0–100) so the
 // chart always sums to 100% regardless of absolute power magnitude.
 const computeRelativeBandPowers = (packet: EegBandPowers): EegBandPowers => {
@@ -77,6 +84,25 @@ export const useEegListener = (
   const [isConnected, setIsConnected] = React.useState(false);
   const [poorSignalLevel, setPoorSignalLevel] = React.useState(200);
 
+  // Watchdog: reset on every packet; fires PACKET_TIMEOUT_MS after the last
+  // one, synthesizing poorSignalLevel = 200 so the signal monitor detects the
+  // silence even though the serial port is still open.
+  const watchdogRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetWatchdog = React.useCallback(() => {
+    if (watchdogRef.current !== null) clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => {
+      setPoorSignalLevel(200);
+    }, PACKET_TIMEOUT_MS);
+  }, []);
+
+  const clearWatchdog = React.useCallback(() => {
+    if (watchdogRef.current !== null) {
+      clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, []);
+
   // Extract primitives for the dependency array — avoids object reference churn.
   const sourceType = source.type;
   const esp32PortName = source.type === "esp32" ? source.portName : "";
@@ -89,6 +115,7 @@ export const useEegListener = (
 
     if (!active) {
       stopReader();
+      clearWatchdog();
       setDisplayBandPowers(undefined);
       setRawBandPowers(undefined);
       setIsConnected(false);
@@ -104,6 +131,7 @@ export const useEegListener = (
     let unlistenStatus: (() => void) | undefined;
 
     subscribeToEegPackets((packet) => {
+      resetWatchdog();
       setPoorSignalLevel(packet.poorSignalLevel);
       if (packet.poorSignalLevel < POOR_SIGNAL_REJECTION_THRESHOLD) {
         setRawBandPowers(packet);
@@ -134,6 +162,7 @@ export const useEegListener = (
     return () => {
       unlistenPackets?.();
       unlistenStatus?.();
+      clearWatchdog();
       stopReader();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

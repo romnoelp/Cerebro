@@ -35,4 +35,15 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("@tabler/icons-react")) return "vendor-icons";
+          if (id.includes("node_modules")) return "vendor";
+        },
+      },
+    },
+  },
 }));

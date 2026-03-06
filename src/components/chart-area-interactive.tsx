@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { type SessionSummary } from "@/types";
+import { type SessionSummary } from "@/domain";
 
 export const description = "EEG band power over time";
 

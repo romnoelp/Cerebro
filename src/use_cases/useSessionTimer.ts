@@ -9,12 +9,12 @@ interface SessionTimerResult {
   reset: () => void;
 }
 
-export const useSessionTimer = (isScanning: boolean): SessionTimerResult => {
+export const useSessionTimer = (active: boolean): SessionTimerResult => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [estimatedSampleCount, setEstimatedSampleCount] = useState(0);
 
   useEffect(() => {
-    if (!isScanning) return;
+    if (!active) return;
     const intervalId = setInterval(() => {
       setElapsedSeconds((previous) => previous + 1);
       setEstimatedSampleCount(
@@ -22,7 +22,7 @@ export const useSessionTimer = (isScanning: boolean): SessionTimerResult => {
       );
     }, 1000);
     return () => clearInterval(intervalId);
-  }, [isScanning]);
+  }, [active]);
 
   const reset = () => {
     setElapsedSeconds(0);

@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { type SessionSummary } from "@/types";
+import { type SessionSummary } from "@/domain";
 
 function mean(arr: number[]): number {
   if (!arr.length) return 0;

@@ -5,7 +5,7 @@ import { ease } from "@/lib/constants";
 import AppSidebar from "@/components/AppSidebar";
 import CodeView from "@/components/CodeView";
 import { fileLabels, fileSource, liveScreens } from "@/lib/file-contents";
-import { type AppFile } from "@/types";
+import { type AppFile } from "@/domain";
 import SessionScreen from "./Session";
 import DashboardScreen from "./Dashboard";
 import { SiteHeader } from "@/components/site-header";

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
-import { type TgcBandData } from "@/types";
+import { type EegBandPowers as TgcBandData } from "@/domain";
 
 import {
   Card,
@@ -99,30 +99,6 @@ const clamp = (v: number, lo: number, hi: number) => {
   return Math.max(lo, Math.min(hi, v));
 };
 
-const generateSeed = (): DataPoint[] => {
-  const data: DataPoint[] = [];
-  const state = Object.fromEntries(
-    BANDS.map((b) => [b.key, (b.init.lo + b.init.hi) / 2]),
-  ) as Record<BandKey, number>;
-  for (let i = 0; i < WINDOW + 1; i++) {
-    BANDS.forEach((b) => {
-      state[b.key] = clamp(
-        state[b.key] +
-          (Math.random() - b.init.drift) * ((b.init.hi - b.init.lo) * 0.15),
-        b.init.lo,
-        b.init.hi,
-      );
-    });
-    data.push({
-      second: i,
-      ...Object.fromEntries(
-        BANDS.map((b) => [b.key, Math.round(state[b.key])]),
-      ),
-    } as DataPoint);
-  }
-  return data;
-};
-
 const chartConfig = {
   bands: { label: "Band Power (μV²)" },
   ...Object.fromEntries(
@@ -136,13 +112,11 @@ const chartConfig = {
 export function ChartLineInteractive({
   isRunning = false,
   shouldReset = false,
-  hasStarted = false,
   liveData,
   className,
 }: {
   isRunning?: boolean;
   shouldReset?: boolean;
-  hasStarted?: boolean;
   /** Live band power packet from the headset. When provided the mock ticker
    *  is suppressed and real data drives the chart instead. */
   liveData?: TgcBandData;
@@ -153,10 +127,10 @@ export function ChartLineInteractive({
     () => new Set(BANDS.map((b) => b.key)),
   );
 
-  const [displayData, setDisplayData] = React.useState<DataPoint[]>(() => [
-    { ...EMPTY_POINT },
-  ]);
-  const counterRef = React.useRef(0);
+  const [displayData, setDisplayData] = React.useState<DataPoint[]>(() =>
+    Array.from({ length: WINDOW + 1 }, (_, i) => ({ ...EMPTY_POINT, second: i })),
+  );
+  const counterRef = React.useRef(WINDOW + 1);
   // Running state per band so each drifts continuously between ticks
   const stateRef = React.useRef<Record<BandKey, number>>(
     Object.fromEntries(
@@ -176,38 +150,23 @@ export function ChartLineInteractive({
     });
   };
 
+  // Flat window used when the chart is waiting for real data.
+  const emptyWindow = React.useMemo(
+    () => Array.from({ length: WINDOW + 1 }, (_, i) => ({ ...EMPTY_POINT, second: i })),
+    [],
+  );
+
   // Reset chart data when shouldReset is true
   React.useEffect(() => {
     if (shouldReset) {
-      // Reset to empty state when session is cleared
-      if (!hasStarted) {
-        setDisplayData([{ ...EMPTY_POINT }]);
-        counterRef.current = 0;
-      } else {
-        // Reset with new seed data when starting fresh session
-        const newData = generateSeed();
-        setDisplayData(newData);
-        counterRef.current = WINDOW + 1;
-        const last = newData[newData.length - 1];
-        BANDS.forEach((b) => {
-          stateRef.current[b.key] = last[b.key];
-        });
-      }
-    }
-  }, [shouldReset, hasStarted]);
-
-  // Initialize with real data when session starts
-  React.useEffect(() => {
-    if (hasStarted && displayData.length === 1 && displayData[0].second === 0) {
-      const newData = generateSeed();
-      setDisplayData(newData);
+      setDisplayData(emptyWindow);
       counterRef.current = WINDOW + 1;
-      const last = newData[newData.length - 1];
+      // Reset stateRef to band midpoints so mock ticker drifts naturally.
       BANDS.forEach((b) => {
-        stateRef.current[b.key] = last[b.key];
+        stateRef.current[b.key] = (b.init.lo + b.init.hi) / 2;
       });
     }
-  }, [hasStarted]);
+  }, [shouldReset, emptyWindow]);
 
   React.useEffect(() => {
     // Mock ticker — only runs when no live headset data is available.

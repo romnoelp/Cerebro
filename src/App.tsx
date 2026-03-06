@@ -15,7 +15,7 @@ import {
   fadeToSessionDelay,
 } from "./screens/intro/constants";
 import { ease } from "./lib/constants";
-import { type Screen } from "./types";
+import { type Screen } from "@/domain";
 
 /** Fraction of the monitor's logical resolution to use for the window. */
 const windowScale = 0.8;

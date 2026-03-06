@@ -27,6 +27,7 @@ import {
   type EegSourceConfig,
 } from "@/use_cases/useEegListener";
 import { useSessionRecorder } from "@/use_cases/useSessionRecorder";
+import { useSignalMonitor } from "@/use_cases/useSignalMonitor";
 import { StatCard } from "./session/components/StatCard";
 import { ModelManagementCard } from "./session/components/ModelManagementCard";
 import { SessionControlsCard } from "./session/components/SessionControlsCard";
@@ -77,16 +78,21 @@ const SessionScreen = () => {
     loadPorts();
   }, [loadPorts]);
 
-  const {
-    elapsedSeconds,
-    estimatedSampleCount,
-    reset: resetTimer,
-  } = useSessionTimer(isScanning);
   const stagedModelMap = useModelStore((s) => s.stagedModelMap);
   const modelReady = useModelStore((s) => s.modelReady);
   const handleLoadModel = useModelStore((s) => s.handleLoadModel);
   const { displayBandPowers, rawBandPowers, isConnected, poorSignalLevel } =
     useEegListener(isScanning || showCalibrationDialog, eegSource);
+  // Timer and sample counter only run while scanning AND signal is clean enough
+  // for packets to be accepted. This prevents elapsed time from growing during
+  // headset dropouts when no data is actually being recorded.
+  const hasGoodSignal = isConnected && poorSignalLevel < 50;
+  const {
+    elapsedSeconds,
+    estimatedSampleCount,
+    reset: resetTimer,
+  } = useSessionTimer(isScanning && hasGoodSignal);
+  useSignalMonitor({ active: isScanning, isConnected, poorSignalLevel });
   const recorder = useSessionRecorder();
   const addSession = useSessionStore((store) => store.addSession);
   const {
@@ -377,7 +383,6 @@ const SessionScreen = () => {
             <ChartLineInteractive
               isRunning={isScanning}
               shouldReset={shouldResetChart}
-              hasStarted={hasSessionStarted}
               liveData={displayBandPowers}
               className="flex-1 min-h-0"
             />
