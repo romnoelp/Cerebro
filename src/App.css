@@ -173,6 +173,13 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+html,
+body,
+#root {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 html {
   /*
    * Scale the root font-size (and therefore all rem-based sizes) linearly
