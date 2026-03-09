@@ -9,6 +9,12 @@ use crate::domain::{
     ports::InferenceRunner,
 };
 
+// Feature index of the β/θ engagement ratio in the 11-element feature vector.
+// The Python training pipeline zeroes this index before training when unlabelled
+// datasets are included, preventing the model from learning a trivial threshold.
+// Inference must apply the same zeroing so the runtime distribution matches training.
+const BETA_THETA_RATIO_FEATURE_INDEX: usize = 8;
+
 // Matches the JSON produced by scaler_params.json (sklearn StandardScaler export).
 #[derive(Debug, Deserialize)]
 pub struct ScalerParams {
@@ -63,7 +69,8 @@ impl OnnxInferenceRunner {
 impl InferenceRunner for OnnxInferenceRunner {
     fn predict(&mut self, packet: &EegPacket) -> Result<FocusReading, AppError> {
         let features = extract_feature_vector(packet, &mut self.prev_delta_relative);
-        let normalized = apply_standard_scaler(&features, &self.mean, &self.scale);
+        let mut normalized = apply_standard_scaler(&features, &self.mean, &self.scale);
+        blind_beta_theta_ratio(&mut normalized);
         run_onnx_session(&mut self.session, normalized).map_err(AppError::InferenceFailure)
     }
 }
@@ -115,6 +122,14 @@ fn apply_standard_scaler(features: &[f32; 11], mean: &[f32], scale: &[f32]) -> V
         .enumerate()
         .map(|(index, value)| (value - mean[index]) / scale[index])
         .collect()
+}
+
+// To match the training-time feature blinding, zeroes the β/θ ratio slot so the
+// model receives the same input distribution it was trained on.
+fn blind_beta_theta_ratio(normalized_features: &mut Vec<f32>) {
+    if let Some(slot) = normalized_features.get_mut(BETA_THETA_RATIO_FEATURE_INDEX) {
+        *slot = 0.0;
+    }
 }
 
 fn run_onnx_session(session: &mut Session, normalized: Vec<f32>) -> Result<FocusReading, String> {

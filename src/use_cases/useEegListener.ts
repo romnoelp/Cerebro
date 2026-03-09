@@ -127,6 +127,12 @@ export const useEegListener = (
       logger.ioError("EEG reader start failed", error),
     );
 
+    // isCleaned guards against a race where the cleanup function runs before
+    // the subscription promises resolve. Without it, unlistenPackets and
+    // unlistenStatus would both be undefined at cleanup time, leaving stale
+    // Tauri event listeners active — which can fire setIsConnected(false) into
+    // a subsequent scan and incorrectly trigger the disconnect dialog.
+    let isCleaned = false;
     let unlistenPackets: (() => void) | undefined;
     let unlistenStatus: (() => void) | undefined;
 
@@ -139,6 +145,10 @@ export const useEegListener = (
       }
     })
       .then((unlisten) => {
+        if (isCleaned) {
+          unlisten();
+          return;
+        }
         unlistenPackets = unlisten;
       })
       .catch((error) =>
@@ -153,6 +163,10 @@ export const useEegListener = (
       }
     })
       .then((unlisten) => {
+        if (isCleaned) {
+          unlisten();
+          return;
+        }
         unlistenStatus = unlisten;
       })
       .catch((error) =>
@@ -160,6 +174,7 @@ export const useEegListener = (
       );
 
     return () => {
+      isCleaned = true;
       unlistenPackets?.();
       unlistenStatus?.();
       clearWatchdog();

@@ -128,7 +128,10 @@ export function ChartLineInteractive({
   );
 
   const [displayData, setDisplayData] = React.useState<DataPoint[]>(() =>
-    Array.from({ length: WINDOW + 1 }, (_, i) => ({ ...EMPTY_POINT, second: i })),
+    Array.from({ length: WINDOW + 1 }, (_, i) => ({
+      ...EMPTY_POINT,
+      second: i,
+    })),
   );
   const counterRef = React.useRef(WINDOW + 1);
   // Running state per band so each drifts continuously between ticks
@@ -152,7 +155,11 @@ export function ChartLineInteractive({
 
   // Flat window used when the chart is waiting for real data.
   const emptyWindow = React.useMemo(
-    () => Array.from({ length: WINDOW + 1 }, (_, i) => ({ ...EMPTY_POINT, second: i })),
+    () =>
+      Array.from({ length: WINDOW + 1 }, (_, i) => ({
+        ...EMPTY_POINT,
+        second: i,
+      })),
     [],
   );
 
@@ -279,9 +286,7 @@ export function ChartLineInteractive({
         </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex flex-col flex-1 min-h-0">
-        <ChartContainer
-          config={chartConfig}
-          className="flex-1 min-h-0 w-full">
+        <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full">
           <LineChart
             data={displayData}
             margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>

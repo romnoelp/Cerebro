@@ -83,15 +83,11 @@ const SessionScreen = () => {
   const handleLoadModel = useModelStore((s) => s.handleLoadModel);
   const { displayBandPowers, rawBandPowers, isConnected, poorSignalLevel } =
     useEegListener(isScanning || showCalibrationDialog, eegSource);
-  // Timer and sample counter only run while scanning AND signal is clean enough
-  // for packets to be accepted. This prevents elapsed time from growing during
-  // headset dropouts when no data is actually being recorded.
+  // Timer runs for the full scanning duration so the elapsed clock does not
+  // freeze during brief signal dropouts. Packet acceptance and recording are
+  // still gated on poorSignalLevel < 50 — only the display is decoupled.
   const hasGoodSignal = isConnected && poorSignalLevel < 50;
-  const {
-    elapsedSeconds,
-    estimatedSampleCount,
-    reset: resetTimer,
-  } = useSessionTimer(isScanning && hasGoodSignal);
+  const { elapsedSeconds, reset: resetTimer } = useSessionTimer(isScanning);
   useSignalMonitor({ active: isScanning, isConnected, poorSignalLevel });
   const recorder = useSessionRecorder();
   const addSession = useSessionStore((store) => store.addSession);
@@ -250,6 +246,10 @@ const SessionScreen = () => {
   };
 
   const handleStopScanning = () => {
+    // Clear the ref before the state update so any race between
+    // setIsScanning(false) and a late setIsConnected(false) from the
+    // useEegListener teardown cannot trigger the disconnect dialog.
+    wasConnectedRef.current = false;
     setIsScanning(false);
     sileo.info({
       title: "Scanning paused",
@@ -360,7 +360,7 @@ const SessionScreen = () => {
             <StatCard
               icon={<IconDatabase className="size-3.5" />}
               label="Samples"
-              value={formatSamples(estimatedSampleCount)}
+              value={formatSamples(recorder.rowCount)}
               isActive={isScanning}
             />
             <StatCard
