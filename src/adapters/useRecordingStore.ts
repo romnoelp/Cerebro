@@ -53,6 +53,9 @@ const recordRowToCsvLine = (row: EegRecordRow): string =>
 
 interface RecordingStore {
   rowCount: number;
+  /** Last 5 model focus labels (0 or 1 only; −1 excluded). Used for the
+   *  rolling majority vote displayed on the live chart. */
+  recentFocusLabels: number[];
 
   /**
    * To append one row per accepted tgc-data packet. Pass `focusReading` as
@@ -75,8 +78,11 @@ interface RecordingStore {
   clearRecording: () => void;
 }
 
+const ROLLING_WINDOW = 5;
+
 export const useRecordingStore = create<RecordingStore>((set) => ({
   rowCount: 0,
+  recentFocusLabels: [],
 
   appendEegRecord: (bandPowers, focusReading) => {
     accumulatedRows.push({
@@ -95,7 +101,16 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
       focusLabel: focusReading?.label ?? -1,
       focusPrediction: focusReading?.labelName ?? "N/A",
     });
-    set({ rowCount: accumulatedRows.length });
+    set((state) => {
+      // Only keep valid model labels (0 or 1) in the rolling window — skip −1
+      // (model not loaded) so the heuristic isn't diluted by unclassified packets.
+      const label = focusReading?.label;
+      const next =
+        label === 0 || label === 1
+          ? [...state.recentFocusLabels, label].slice(-ROLLING_WINDOW)
+          : state.recentFocusLabels;
+      return { rowCount: accumulatedRows.length, recentFocusLabels: next };
+    });
   },
 
   buildCsvString: () =>
@@ -131,6 +146,6 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
 
   clearRecording: () => {
     accumulatedRows.length = 0;
-    set({ rowCount: 0 });
+    set({ rowCount: 0, recentFocusLabels: [] });
   },
 }));

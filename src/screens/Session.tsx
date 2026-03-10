@@ -384,6 +384,7 @@ const SessionScreen = () => {
               isRunning={isScanning}
               shouldReset={shouldResetChart}
               liveData={displayBandPowers}
+              modelFocusState={recorder.rollingFocusVote}
               className="flex-1 min-h-0"
             />
             <div className={cn("flex flex-col gap-3", "overflow-y-auto")}>

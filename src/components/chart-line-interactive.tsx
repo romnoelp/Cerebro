@@ -113,6 +113,7 @@ export function ChartLineInteractive({
   isRunning = false,
   shouldReset = false,
   liveData,
+  modelFocusState,
   className,
 }: {
   isRunning?: boolean;
@@ -120,6 +121,11 @@ export function ChartLineInteractive({
   /** Live band power packet from the headset. When provided the mock ticker
    *  is suppressed and real data drives the chart instead. */
   liveData?: TgcBandData;
+  /** Rolling majority-vote result from the ONNX model (last 5 packets).
+   *  When provided this overrides the local β/θ heuristic so the chart
+   *  label matches what is written to the CSV. undefined = window not yet
+   *  full, fall back to heuristic. */
+  modelFocusState?: "focused" | "unfocused";
   className?: string;
 }) {
   // Which bands are toggled visible — all on by default
@@ -222,26 +228,19 @@ export function ChartLineInteractive({
     ]);
   }, [liveData, isRunning]);
 
-  // Focus = beta/theta ratio — mirrors notebook feature[8]: combined_beta / theta
-  // ratio >= 0.5 → Focused (1), ratio < 0.5 → Unfocused (0)
-  const focusRatio = React.useMemo(() => {
-    const slice = displayData.slice(-5);
-    const avg =
-      slice.reduce((s, d) => {
-        const beta = (d.lowBeta + d.highBeta) / 2;
-        return s + beta / Math.max(d.theta, 1);
-      }, 0) / slice.length;
-    return avg;
-  }, [displayData]);
-
-  const FOCUS_THRESHOLD = 0.5; // matches notebook: sigmoid >= 0.5 → Focused
-  const focusState = focusRatio >= FOCUS_THRESHOLD ? "focused" : "unfocused";
-  const focusLabel = focusState === "focused" ? "Focused" : "Unfocused";
-  // clamp ratio to 0–1 range for bar fill (threshold sits at 50%)
-  const focusBarPct = Math.min(
-    100,
-    Math.round((focusRatio / (FOCUS_THRESHOLD * 2)) * 100),
-  );
+  // Focus state comes exclusively from the model's rolling majority vote.
+  // undefined = window not yet full or no model loaded → show waiting state.
+  const focusState: "focused" | "unfocused" | "waiting" =
+    modelFocusState ?? "waiting";
+  const focusLabel =
+    focusState === "focused"
+      ? "FOCUSED"
+      : focusState === "unfocused"
+        ? "UNFOCUSED"
+        : "WAITING...";
+  // Bar is full for focused, empty for unfocused, and animates via CSS pulse
+  // for waiting so the user can tell the model is active but warming up.
+  const focusBarPct = focusState === "focused" ? 100 : 0;
 
   return (
     <Card
@@ -333,12 +332,13 @@ export function ChartLineInteractive({
           <span
             className="size-1.5 rounded-full shrink-0 transition-colors duration-500"
             style={{
-              backgroundColor: isRunning
-                ? focusState === "focused"
-                  ? "var(--chart-2)"
-                  : "var(--chart-1)"
-                : "var(--muted-foreground)",
-              opacity: isRunning ? 1 : 0.4,
+              backgroundColor:
+                !isRunning || focusState === "waiting"
+                  ? "var(--muted-foreground)"
+                  : focusState === "focused"
+                    ? "var(--chart-2)"
+                    : "var(--chart-1)",
+              opacity: !isRunning || focusState === "waiting" ? 0.4 : 1,
             }}
           />
           <span className="text-[10px] text-muted-foreground/60 uppercase tracking-widest">
@@ -347,9 +347,14 @@ export function ChartLineInteractive({
         </div>
         <div className="flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
           <div
-            className="h-full rounded-full transition-all duration-700"
+            className={isRunning && focusState === "waiting" ? "h-full rounded-full animate-pulse bg-muted-foreground/30" : "h-full rounded-full transition-all duration-700"}
             style={{
-              width: isRunning ? `${focusBarPct}%` : "0%",
+              width:
+                isRunning && focusState !== "waiting"
+                  ? `${focusBarPct}%`
+                  : isRunning
+                    ? "100%"
+                    : "0%",
               backgroundColor:
                 focusState === "focused" ? "var(--chart-2)" : "var(--chart-1)",
             }}
@@ -358,14 +363,15 @@ export function ChartLineInteractive({
         <span
           className="text-[10px] font-semibold font-mono tracking-wider shrink-0 transition-colors min-w-15 text-right"
           style={{
-            color: isRunning
-              ? focusState === "focused"
-                ? "var(--chart-2)"
-                : "var(--chart-1)"
-              : "var(--muted-foreground)",
-            opacity: isRunning ? 1 : 0.4,
+            color:
+              !isRunning || focusState === "waiting"
+                ? "var(--muted-foreground)"
+                : focusState === "focused"
+                  ? "var(--chart-2)"
+                  : "var(--chart-1)",
+            opacity: !isRunning || focusState === "waiting" ? 0.4 : 1,
           }}>
-          {isRunning ? focusLabel.toUpperCase() : "IDLE"}
+          {isRunning ? focusLabel : "IDLE"}
         </span>
       </div>
     </Card>
