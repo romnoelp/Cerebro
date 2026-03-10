@@ -18,66 +18,17 @@ import {
 } from "@/components/ui/chart";
 
 const WINDOW = 30;
-const TICK_MS = 400;
 
 // All 8 ThinkGear bands — keys match ThinkGear Connector JSON exactly
 const BANDS = [
-  {
-    key: "delta",
-    label: "δ Delta",
-    range: "0.5–2.75 Hz",
-    color: "var(--chart-1)",
-    init: { lo: 45, hi: 70, drift: 0.49 },
-  },
-  {
-    key: "theta",
-    label: "θ Theta",
-    range: "3.5–6.75 Hz",
-    color: "var(--chart-2)",
-    init: { lo: 15, hi: 35, drift: 0.5 },
-  },
-  {
-    key: "lowAlpha",
-    label: "α Low",
-    range: "7.5–9.25 Hz",
-    color: "var(--chart-3)",
-    init: { lo: 10, hi: 28, drift: 0.48 },
-  },
-  {
-    key: "highAlpha",
-    label: "α High",
-    range: "10–11.75 Hz",
-    color: "var(--chart-4)",
-    init: { lo: 8, hi: 22, drift: 0.5 },
-  },
-  {
-    key: "lowBeta",
-    label: "β Low",
-    range: "13–16.75 Hz",
-    color: "var(--chart-5)",
-    init: { lo: 5, hi: 20, drift: 0.5 },
-  },
-  {
-    key: "highBeta",
-    label: "β High",
-    range: "18–29.75 Hz",
-    color: "hsl(280 65% 60%)",
-    init: { lo: 3, hi: 15, drift: 0.51 },
-  },
-  {
-    key: "lowGamma",
-    label: "γ Low",
-    range: "31–39.75 Hz",
-    color: "hsl(180 55% 50%)",
-    init: { lo: 2, hi: 9, drift: 0.51 },
-  },
-  {
-    key: "midGamma",
-    label: "γ Mid",
-    range: "41–49.75 Hz",
-    color: "hsl(40 80% 55%)",
-    init: { lo: 1, hi: 7, drift: 0.51 },
-  },
+  { key: "delta",    label: "δ Delta", range: "0.5–2.75 Hz",   color: "var(--chart-1)" },
+  { key: "theta",    label: "θ Theta", range: "3.5–6.75 Hz",   color: "var(--chart-2)" },
+  { key: "lowAlpha", label: "α Low",   range: "7.5–9.25 Hz",   color: "var(--chart-3)" },
+  { key: "highAlpha",label: "α High",  range: "10–11.75 Hz",   color: "var(--chart-4)" },
+  { key: "lowBeta",  label: "β Low",   range: "13–16.75 Hz",   color: "var(--chart-5)" },
+  { key: "highBeta", label: "β High",  range: "18–29.75 Hz",   color: "hsl(280 65% 60%)" },
+  { key: "lowGamma", label: "γ Low",   range: "31–39.75 Hz",   color: "hsl(180 55% 50%)" },
+  { key: "midGamma", label: "γ Mid",   range: "41–49.75 Hz",   color: "hsl(40 80% 55%)" },
 ] as const;
 
 type BandKey = (typeof BANDS)[number]["key"];
@@ -93,10 +44,6 @@ const EMPTY_POINT: DataPoint = {
   highBeta: 0,
   lowGamma: 0,
   midGamma: 0,
-};
-
-const clamp = (v: number, lo: number, hi: number) => {
-  return Math.max(lo, Math.min(hi, v));
 };
 
 const chartConfig = {
@@ -140,12 +87,6 @@ export function ChartLineInteractive({
     })),
   );
   const counterRef = React.useRef(WINDOW + 1);
-  // Running state per band so each drifts continuously between ticks
-  const stateRef = React.useRef<Record<BandKey, number>>(
-    Object.fromEntries(
-      BANDS.map((b) => [b.key, (b.init.lo + b.init.hi) / 2]),
-    ) as Record<BandKey, number>,
-  );
 
   const toggleBand = (key: BandKey) => {
     setVisibleBands((prev) => {
@@ -174,54 +115,14 @@ export function ChartLineInteractive({
     if (shouldReset) {
       setDisplayData(emptyWindow);
       counterRef.current = WINDOW + 1;
-      // Reset stateRef to band midpoints so mock ticker drifts naturally.
-      BANDS.forEach((b) => {
-        stateRef.current[b.key] = (b.init.lo + b.init.hi) / 2;
-      });
     }
   }, [shouldReset, emptyWindow]);
-
-  React.useEffect(() => {
-    // Mock ticker — only runs when no live headset data is available.
-    if (!isRunning || liveData !== undefined) {
-      return;
-    }
-    const id = setInterval(() => {
-      counterRef.current += 1;
-      const tick = counterRef.current;
-      setDisplayData((prev) => {
-        BANDS.forEach((b) => {
-          stateRef.current[b.key] = clamp(
-            stateRef.current[b.key] +
-              (Math.random() - b.init.drift) * ((b.init.hi - b.init.lo) * 0.15),
-            b.init.lo,
-            b.init.hi,
-          );
-        });
-        const newPoint = {
-          second: tick,
-          ...Object.fromEntries(
-            BANDS.map((b) => [b.key, Math.round(stateRef.current[b.key])]),
-          ),
-        } as DataPoint;
-        return [...prev.slice(1), newPoint];
-      });
-    }, TICK_MS);
-    return () => {
-      clearInterval(id);
-    };
-  }, [isRunning, liveData]);
 
   // Real-data push — fires whenever a new TGC packet arrives.
   React.useEffect(() => {
     if (!isRunning || liveData === undefined) return;
     counterRef.current += 1;
     const tick = counterRef.current;
-    // Update stateRef so mock ticker continues smoothly if headset disconnects.
-    BANDS.forEach((b) => {
-      stateRef.current[b.key] =
-        (liveData as Record<string, number>)[b.key] ?? stateRef.current[b.key];
-    });
     setDisplayData((prev) => [
       ...prev.slice(1),
       { second: tick, ...(liveData as Record<BandKey, number>) } as DataPoint,
