@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion } from "motion/react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
 import { type EegBandPowers as TgcBandData } from "@/domain";
@@ -21,14 +22,54 @@ const WINDOW = 30;
 
 // All 8 ThinkGear bands — keys match ThinkGear Connector JSON exactly
 const BANDS = [
-  { key: "delta",    label: "δ Delta", range: "0.5–2.75 Hz",   color: "var(--chart-1)" },
-  { key: "theta",    label: "θ Theta", range: "3.5–6.75 Hz",   color: "var(--chart-2)" },
-  { key: "lowAlpha", label: "α Low",   range: "7.5–9.25 Hz",   color: "var(--chart-3)" },
-  { key: "highAlpha",label: "α High",  range: "10–11.75 Hz",   color: "var(--chart-4)" },
-  { key: "lowBeta",  label: "β Low",   range: "13–16.75 Hz",   color: "var(--chart-5)" },
-  { key: "highBeta", label: "β High",  range: "18–29.75 Hz",   color: "hsl(280 65% 60%)" },
-  { key: "lowGamma", label: "γ Low",   range: "31–39.75 Hz",   color: "hsl(180 55% 50%)" },
-  { key: "midGamma", label: "γ Mid",   range: "41–49.75 Hz",   color: "hsl(40 80% 55%)" },
+  {
+    key: "delta",
+    label: "δ Delta",
+    range: "0.5–2.75 Hz",
+    color: "var(--chart-1)",
+  },
+  {
+    key: "theta",
+    label: "θ Theta",
+    range: "3.5–6.75 Hz",
+    color: "var(--chart-2)",
+  },
+  {
+    key: "lowAlpha",
+    label: "α Low",
+    range: "7.5–9.25 Hz",
+    color: "var(--chart-3)",
+  },
+  {
+    key: "highAlpha",
+    label: "α High",
+    range: "10–11.75 Hz",
+    color: "var(--chart-4)",
+  },
+  {
+    key: "lowBeta",
+    label: "β Low",
+    range: "13–16.75 Hz",
+    color: "var(--chart-5)",
+  },
+  {
+    key: "highBeta",
+    label: "β High",
+    range: "18–29.75 Hz",
+    color: "hsl(280 65% 60%)",
+  },
+  {
+    key: "lowGamma",
+    label: "γ Low",
+    range: "31–39.75 Hz",
+    color: "hsl(180 55% 50%)",
+  },
+  {
+    key: "midGamma",
+    label: "γ Mid",
+    range: "41–49.75 Hz",
+    color: "hsl(40 80% 55%)",
+  },
 ] as const;
 
 type BandKey = (typeof BANDS)[number]["key"];
@@ -87,6 +128,7 @@ export function ChartLineInteractive({
     })),
   );
   const counterRef = React.useRef(WINDOW + 1);
+  const [hasReceivedData, setHasReceivedData] = React.useState(false);
 
   const toggleBand = (key: BandKey) => {
     setVisibleBands((prev) => {
@@ -115,12 +157,14 @@ export function ChartLineInteractive({
     if (shouldReset) {
       setDisplayData(emptyWindow);
       counterRef.current = WINDOW + 1;
+      setHasReceivedData(false);
     }
   }, [shouldReset, emptyWindow]);
 
   // Real-data push — fires whenever a new TGC packet arrives.
   React.useEffect(() => {
     if (!isRunning || liveData === undefined) return;
+    if (!hasReceivedData) setHasReceivedData(true);
     counterRef.current += 1;
     const tick = counterRef.current;
     setDisplayData((prev) => [
@@ -139,9 +183,9 @@ export function ChartLineInteractive({
       : focusState === "unfocused"
         ? "UNFOCUSED"
         : "WAITING...";
-  // Bar is full for focused, empty for unfocused, and animates via CSS pulse
-  // for waiting so the user can tell the model is active but warming up.
-  const focusBarPct = focusState === "focused" ? 100 : 0;
+  // Bar is full for both states; color (green vs red) distinguishes them.
+  // Animates via CSS pulse for waiting so the user can tell the model is warming up.
+  const focusBarPct = 100;
 
   return (
     <Card
@@ -185,8 +229,25 @@ export function ChartLineInteractive({
           })}
         </div>
       </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex flex-col flex-1 min-h-0">
-        <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full">
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex flex-col flex-1 min-h-0 relative">
+        {isRunning && !hasReceivedData && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
+            <motion.div
+              className="w-5 h-5 rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground/60"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, ease: "linear", repeat: Infinity }}
+            />
+            <span className="text-[10px] font-mono tracking-widest uppercase text-muted-foreground/40">
+              Awaiting signal
+            </span>
+          </div>
+        )}
+        <ChartContainer
+          config={chartConfig}
+          className={cn(
+            "flex-1 min-h-0 w-full transition-opacity duration-500",
+            isRunning && !hasReceivedData ? "opacity-0" : "opacity-100",
+          )}>
           <LineChart
             data={displayData}
             margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
@@ -247,19 +308,31 @@ export function ChartLineInteractive({
           </span>
         </div>
         <div className="flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
-          <div
-            className={isRunning && focusState === "waiting" ? "h-full rounded-full animate-pulse bg-muted-foreground/30" : "h-full rounded-full transition-all duration-700"}
-            style={{
-              width:
-                isRunning && focusState !== "waiting"
-                  ? `${focusBarPct}%`
-                  : isRunning
-                    ? "100%"
-                    : "0%",
-              backgroundColor:
-                focusState === "focused" ? "var(--chart-2)" : "var(--chart-1)",
-            }}
-          />
+          {isRunning && focusState === "waiting" ? (
+            // Sliding scanner — no data dependency, purely visual
+            <motion.div
+              className="h-full w-1/2 rounded-full bg-muted-foreground/30"
+              initial={{ x: "-100%" }}
+              animate={{ x: "200%" }}
+              transition={{
+                repeat: Infinity,
+                duration: 1.4,
+                ease: "easeInOut",
+                repeatType: "reverse",
+              }}
+            />
+          ) : (
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: isRunning ? `${focusBarPct}%` : "0%",
+                backgroundColor:
+                  focusState === "focused"
+                    ? "var(--chart-2)"
+                    : "var(--chart-1)",
+              }}
+            />
+          )}
         </div>
         <span
           className="text-[10px] font-semibold font-mono tracking-wider shrink-0 transition-colors min-w-15 text-right"
