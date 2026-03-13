@@ -143,6 +143,7 @@ const SessionScreen = () => {
 
   const handleCalibrationComplete = () => {
     setShowCalibrationDialog(false);
+    recorder.resetFocusWindow();
     setShouldResetChart(true);
     setIsScanning(true);
     setHasSessionStarted(true);
@@ -163,7 +164,6 @@ const SessionScreen = () => {
     }
   }, [isScanning, isConnected]);
 
-  // Detect mid-session disconnect — only fires if headset was previously connected.
   React.useEffect(() => {
     if (isScanning && !isConnected && wasConnectedRef.current) {
       setIsScanning(false);
@@ -385,6 +385,7 @@ const SessionScreen = () => {
               shouldReset={shouldResetChart}
               liveData={displayBandPowers}
               modelFocusState={recorder.rollingFocusVote}
+              modelFocusLevel={recorder.rollingFocusLevel}
               className="flex-1 min-h-0"
             />
             <div className={cn("flex flex-col gap-3", "overflow-y-auto")}>

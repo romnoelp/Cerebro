@@ -56,6 +56,7 @@ interface RecordingStore {
   /** Last 5 model focus labels (0 or 1 only; −1 excluded). Used for the
    *  rolling majority vote displayed on the live chart. */
   recentFocusLabels: number[];
+  resetFocusWindow: () => void;
 
   /**
    * To append one row per accepted tgc-data packet. Pass `focusReading` as
@@ -83,6 +84,10 @@ const ROLLING_WINDOW = 5;
 export const useRecordingStore = create<RecordingStore>((set) => ({
   rowCount: 0,
   recentFocusLabels: [],
+
+  resetFocusWindow: () => {
+    set({ recentFocusLabels: [] });
+  },
 
   appendEegRecord: (bandPowers, focusReading) => {
     accumulatedRows.push({

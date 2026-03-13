@@ -87,6 +87,10 @@ const EMPTY_POINT: DataPoint = {
   midGamma: 0,
 };
 
+const clamp = (value: number, low: number, high: number) => {
+  return Math.max(low, Math.min(high, value));
+};
+
 const chartConfig = {
   bands: { label: "Band Power (μV²)" },
   ...Object.fromEntries(
@@ -102,18 +106,21 @@ export function ChartLineInteractive({
   shouldReset = false,
   liveData,
   modelFocusState,
+  modelFocusLevel,
   className,
 }: {
   isRunning?: boolean;
   shouldReset?: boolean;
-  /** Live band power packet from the headset. When provided the mock ticker
-   *  is suppressed and real data drives the chart instead. */
+  /** Live band power packet from the headset. When provided, real data drives
+   *  the chart. */
   liveData?: TgcBandData;
   /** Rolling majority-vote result from the ONNX model (last 5 packets).
    *  When provided this overrides the local β/θ heuristic so the chart
    *  label matches what is written to the CSV. undefined = window not yet
    *  full, fall back to heuristic. */
   modelFocusState?: "focused" | "unfocused";
+  /** Rolling focus level from the model window (0..100). */
+  modelFocusLevel?: number;
   className?: string;
 }) {
   // Which bands are toggled visible — all on by default
@@ -128,7 +135,6 @@ export function ChartLineInteractive({
     })),
   );
   const counterRef = React.useRef(WINDOW + 1);
-  const [hasReceivedData, setHasReceivedData] = React.useState(false);
 
   const toggleBand = (key: BandKey) => {
     setVisibleBands((prev) => {
@@ -157,14 +163,12 @@ export function ChartLineInteractive({
     if (shouldReset) {
       setDisplayData(emptyWindow);
       counterRef.current = WINDOW + 1;
-      setHasReceivedData(false);
     }
   }, [shouldReset, emptyWindow]);
 
   // Real-data push — fires whenever a new TGC packet arrives.
   React.useEffect(() => {
     if (!isRunning || liveData === undefined) return;
-    if (!hasReceivedData) setHasReceivedData(true);
     counterRef.current += 1;
     const tick = counterRef.current;
     setDisplayData((prev) => [
@@ -173,19 +177,19 @@ export function ChartLineInteractive({
     ]);
   }, [liveData, isRunning]);
 
-  // Focus state comes exclusively from the model's rolling majority vote.
-  // undefined = window not yet full or no model loaded → show waiting state.
+  const resolvedFocusLevel = clamp(modelFocusLevel ?? 0, 0, 100);
+
+  // Focus state comes from the model's rolling vote in live mode.
+  // undefined means the model window is not yet full.
   const focusState: "focused" | "unfocused" | "waiting" =
     modelFocusState ?? "waiting";
   const focusLabel =
     focusState === "focused"
-      ? "FOCUSED"
+      ? `FOCUSED ${Math.round(resolvedFocusLevel)}%`
       : focusState === "unfocused"
-        ? "UNFOCUSED"
+        ? `UNFOCUSED ${Math.round(resolvedFocusLevel)}%`
         : "WAITING...";
-  // Bar is full for both states; color (green vs red) distinguishes them.
-  // Animates via CSS pulse for waiting so the user can tell the model is warming up.
-  const focusBarPct = 100;
+  const focusBarPct = resolvedFocusLevel;
 
   return (
     <Card
@@ -230,24 +234,7 @@ export function ChartLineInteractive({
         </div>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 flex flex-col flex-1 min-h-0 relative">
-        {isRunning && !hasReceivedData && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2">
-            <motion.div
-              className="w-5 h-5 rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground/60"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, ease: "linear", repeat: Infinity }}
-            />
-            <span className="text-[10px] font-mono tracking-widest uppercase text-muted-foreground/40">
-              Awaiting signal
-            </span>
-          </div>
-        )}
-        <ChartContainer
-          config={chartConfig}
-          className={cn(
-            "flex-1 min-h-0 w-full transition-opacity duration-500",
-            isRunning && !hasReceivedData ? "opacity-0" : "opacity-100",
-          )}>
+        <ChartContainer config={chartConfig} className="flex-1 min-h-0 w-full">
           <LineChart
             data={displayData}
             margin={{ left: 8, right: 8, top: 4, bottom: 4 }}>
@@ -307,18 +294,16 @@ export function ChartLineInteractive({
             Brain State
           </span>
         </div>
-        <div className="flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
+        <div className="relative flex-1 h-1 bg-muted/50 rounded-full overflow-hidden">
           {isRunning && focusState === "waiting" ? (
-            // Sliding scanner — no data dependency, purely visual
             <motion.div
-              className="h-full w-1/2 rounded-full bg-muted-foreground/30"
-              initial={{ x: "-100%" }}
-              animate={{ x: "200%" }}
+              className="absolute inset-y-0 left-0 w-2/5 rounded-full bg-muted-foreground/35"
+              initial={{ x: "-120%", opacity: 0.4 }}
+              animate={{ x: ["-120%", "180%"], opacity: [0.35, 0.75, 0.35] }}
               transition={{
                 repeat: Infinity,
-                duration: 1.4,
-                ease: "easeInOut",
-                repeatType: "reverse",
+                duration: 1.15,
+                ease: "linear",
               }}
             />
           ) : (
@@ -326,10 +311,9 @@ export function ChartLineInteractive({
               className="h-full rounded-full transition-all duration-700"
               style={{
                 width: isRunning ? `${focusBarPct}%` : "0%",
-                backgroundColor:
-                  focusState === "focused"
-                    ? "var(--chart-2)"
-                    : "var(--chart-1)",
+                backgroundColor: `color-mix(in srgb, var(--chart-1) ${
+                  100 - resolvedFocusLevel
+                }%, var(--chart-2) ${resolvedFocusLevel}%)`,
               }}
             />
           )}

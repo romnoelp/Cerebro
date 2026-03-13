@@ -8,6 +8,7 @@ export const useSessionRecorder = () => {
   const recentFocusLabels = useRecordingStore(
     (store) => store.recentFocusLabels,
   );
+  const resetFocusWindow = useRecordingStore((store) => store.resetFocusWindow);
   const appendEegRecord = useRecordingStore((store) => store.appendEegRecord);
   const buildCsvString = useRecordingStore((store) => store.buildCsvString);
   const buildSessionSummary = useRecordingStore(
@@ -24,12 +25,21 @@ export const useSessionRecorder = () => {
         : "unfocused"
       : undefined;
 
+  // Focus strength from the same 5-sample window (0..100).
+  // undefined when the window is not yet full.
+  const rollingFocusLevel: number | undefined =
+    recentFocusLabels.length === 5
+      ? (recentFocusLabels.filter((l) => l === 1).length / 5) * 100
+      : undefined;
+
   return {
     rowCount,
+    resetFocusWindow,
     appendEegRecord,
     buildCsvString,
     buildSessionSummary,
     clearRecording,
     rollingFocusVote,
+    rollingFocusLevel,
   };
 };
