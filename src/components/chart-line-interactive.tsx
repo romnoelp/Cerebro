@@ -87,6 +87,11 @@ const EMPTY_POINT: DataPoint = {
   midGamma: 0,
 };
 
+const FOCUS_BAR_COLORS = {
+  focused: "hsl(142 72% 42%)",
+  unfocused: "hsl(212 92% 52%)",
+} as const;
+
 const clamp = (value: number, low: number, high: number) => {
   return Math.max(low, Math.min(high, value));
 };
@@ -190,6 +195,12 @@ export function ChartLineInteractive({
         ? `UNFOCUSED ${Math.round(resolvedFocusLevel)}%`
         : "WAITING...";
   const focusBarPct = resolvedFocusLevel;
+  const focusBarColor =
+    focusState === "focused"
+      ? FOCUS_BAR_COLORS.focused
+      : focusState === "unfocused"
+        ? FOCUS_BAR_COLORS.unfocused
+        : "var(--muted-foreground)";
 
   return (
     <Card
@@ -311,9 +322,7 @@ export function ChartLineInteractive({
               className="h-full rounded-full transition-all duration-700"
               style={{
                 width: isRunning ? `${focusBarPct}%` : "0%",
-                backgroundColor: `color-mix(in srgb, var(--chart-1) ${
-                  100 - resolvedFocusLevel
-                }%, var(--chart-2) ${resolvedFocusLevel}%)`,
+                backgroundColor: focusBarColor,
               }}
             />
           )}

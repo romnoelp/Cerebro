@@ -10,9 +10,9 @@ pub struct FocusReading {
 
 // To map a raw ONNX class index to its human-readable focus label.
 pub fn focus_label_name(predicted_class: i64) -> String {
-    if predicted_class == 1 {
-        "Focused".to_string()
-    } else {
-        "Unfocused".to_string()
+    match predicted_class {
+        1 => "Focused".to_string(),
+        0 => "Unfocused".to_string(),
+        _ => "N/A".to_string(),
     }
 }

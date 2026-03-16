@@ -52,6 +52,8 @@ const SessionScreen = () => {
     React.useState(false);
   const [shouldResetChart, setShouldResetChart] = React.useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = React.useState(false);
+  const inferenceIssueCountRef = React.useRef(0);
+  const lastInferenceToastAtRef = React.useRef(0);
   // Tracks whether the headset was connected at any point during this scan
   // so we only fire the disconnect dialog on mid-session drops, not on startup.
   const wasConnectedRef = React.useRef(false);
@@ -101,6 +103,25 @@ const SessionScreen = () => {
     isConnected,
     poorSignalLevel,
   });
+
+  const reportInferenceIssue = React.useCallback(
+    (summary: string, error?: unknown) => {
+      inferenceIssueCountRef.current += 1;
+      logger.ioError(summary, error);
+
+      // Limit to one toast every 5s to avoid flooding at ~1 Hz packet cadence.
+      const now = Date.now();
+      if (now - lastInferenceToastAtRef.current >= 5000) {
+        lastInferenceToastAtRef.current = now;
+        const affected = inferenceIssueCountRef.current;
+        sileo.error({
+          title: "Model inference unstable",
+          description: `Using fallback labels for ${affected} packet${affected === 1 ? "" : "s"}.`,
+        });
+      }
+    },
+    [],
+  );
 
   const handleStartScanning = () => {
     if (hasSessionStarted) {
@@ -177,10 +198,21 @@ const SessionScreen = () => {
     if (modelReady) {
       focusClassifier
         .classify(bandPowers)
-        .then((focusReading: FocusReading) =>
-          recorder.appendEegRecord(bandPowers, focusReading),
-        )
-        .catch(() => recorder.appendEegRecord(bandPowers, undefined));
+        .then((focusReading: FocusReading) => {
+          if (focusReading.label === 0 || focusReading.label === 1) {
+            recorder.appendEegRecord(bandPowers, focusReading);
+            return;
+          }
+
+          reportInferenceIssue(
+            `Unexpected model label received: ${focusReading.label}`,
+          );
+          recorder.appendEegRecord(bandPowers, undefined);
+        })
+        .catch((error) => {
+          reportInferenceIssue("Focus inference request failed", error);
+          recorder.appendEegRecord(bandPowers, undefined);
+        });
     } else {
       recorder.appendEegRecord(bandPowers, undefined);
     }

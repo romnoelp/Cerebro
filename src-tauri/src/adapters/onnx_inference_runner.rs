@@ -148,6 +148,12 @@ fn run_onnx_session(session: &mut Session, normalized: Vec<f32>) -> Result<Focus
         .first()
         .ok_or_else(|| "ONNX returned an empty output tensor".to_string())?;
 
+    if predicted_class != 0 && predicted_class != 1 {
+        return Err(format!(
+            "Unexpected model class id: {predicted_class}. Expected 0 or 1."
+        ));
+    }
+
     Ok(FocusReading {
         label: predicted_class,
         label_name: focus_label_name(predicted_class),
