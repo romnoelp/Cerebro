@@ -9,21 +9,20 @@ use tauri::{AppHandle, Emitter};
 
 use crate::adapters::esp32_packet_parser::parse_esp32_line;
 
-/// Context passed into the ESP32 reader thread — mirrors TgcReaderContext.
+/// Context passed into the ESP32 reader thread.
 pub struct Esp32ReaderContext {
     pub app: AppHandle,
     pub stop_flag: Arc<AtomicBool>,
     pub port_name: String,
 }
 
-/// To open the configured COM port and stream parsed EEG packets as `tgc-data`
-/// events. Uses the same event names as the TGC reader so the frontend hook
-/// is source-agnostic beyond the start/stop commands.
+/// To open the configured COM port and stream parsed EEG packets as `eeg-data`
+/// events for the frontend listener.
 pub fn run_esp32_reader(ctx: Esp32ReaderContext) {
     let Some(serial_port) = open_serial_port(&ctx) else {
         return;
     };
-    let _ = ctx.app.emit("tgc-status", "connected");
+    let _ = ctx.app.emit("eeg-status", "connected");
     stream_serial_packets(serial_port, &ctx);
 }
 
@@ -33,7 +32,7 @@ pub fn run_esp32_reader(ctx: Esp32ReaderContext) {
 fn open_serial_port(ctx: &Esp32ReaderContext) -> Option<Box<dyn serialport::SerialPort>> {
     if ctx.port_name.is_empty() {
         eprintln!("[IO] ESP32 reader aborted — no serial port was specified");
-        let _ = ctx.app.emit("tgc-status", "disconnected");
+        let _ = ctx.app.emit("eeg-status", "disconnected");
         return None;
     }
     match serialport::new(&ctx.port_name, 115_200)
@@ -43,7 +42,7 @@ fn open_serial_port(ctx: &Esp32ReaderContext) -> Option<Box<dyn serialport::Seri
         Ok(serial_port) => Some(serial_port),
         Err(error) => {
             eprintln!("[IO] Failed to open {}: {error}", ctx.port_name);
-            let _ = ctx.app.emit("tgc-status", "disconnected");
+            let _ = ctx.app.emit("eeg-status", "disconnected");
             None
         }
     }
@@ -64,7 +63,7 @@ fn stream_serial_packets(serial_port: Box<dyn serialport::SerialPort>, ctx: &Esp
         line_buffer.clear();
         match reader.read_until(b'\n', &mut line_buffer) {
             Ok(0) => {
-                let _ = ctx.app.emit("tgc-status", "disconnected");
+                let _ = ctx.app.emit("eeg-status", "disconnected");
                 break;
             }
             Ok(_) => emit_if_complete_eeg_packet(&line_buffer, ctx),
@@ -76,7 +75,7 @@ fn stream_serial_packets(serial_port: Box<dyn serialport::SerialPort>, ctx: &Esp
             }
             Err(error) => {
                 eprintln!("[IO] Serial read error on {}: {error}", ctx.port_name);
-                let _ = ctx.app.emit("tgc-status", "disconnected");
+                let _ = ctx.app.emit("eeg-status", "disconnected");
                 break;
             }
         }
@@ -89,7 +88,7 @@ fn stream_serial_packets(serial_port: Box<dyn serialport::SerialPort>, ctx: &Esp
 fn emit_if_complete_eeg_packet(line_buffer: &[u8], ctx: &Esp32ReaderContext) {
     let raw_line = String::from_utf8_lossy(line_buffer);
     if let Some(eeg_packet) = parse_esp32_line(raw_line.trim()) {
-        let _ = ctx.app.emit("tgc-data", eeg_packet);
+        let _ = ctx.app.emit("eeg-data", eeg_packet);
     }
 }
 

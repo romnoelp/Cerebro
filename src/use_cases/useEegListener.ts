@@ -8,9 +8,7 @@ import {
 } from "@/adapters/tauriHeadsetAdapter";
 import { logger } from "@/lib/logger";
 
-export type EegSourceConfig =
-  | { type: "tgc" }
-  | { type: "esp32"; portName: string };
+export type EegSourceConfig = { type: "esp32"; portName: string };
 
 const POOR_SIGNAL_REJECTION_THRESHOLD = 50;
 
@@ -68,12 +66,11 @@ interface EegListenerResult {
 /**
  * Starts and stops the EEG data reader based on `active` and exposes
  * normalized band power data. Packets with poorSignalLevel ≥ 50 are dropped.
- * Both TGC and ESP32 backends emit the same event names, so this hook is
- * source-agnostic beyond the start/stop commands.
+ * Reader control and event subscriptions are delegated to adapter functions.
  */
 export const useEegListener = (
   active: boolean,
-  source: EegSourceConfig = { type: "tgc" },
+  source: EegSourceConfig,
 ): EegListenerResult => {
   const [displayBandPowers, setDisplayBandPowers] = React.useState<
     EegBandPowers | undefined
@@ -103,9 +100,8 @@ export const useEegListener = (
     }
   }, []);
 
-  // Extract primitives for the dependency array — avoids object reference churn.
-  const sourceType = source.type;
-  const esp32PortName = source.type === "esp32" ? source.portName : "";
+  // Extract primitive dependencies to avoid object reference churn.
+  const esp32PortName = source.portName;
 
   React.useEffect(() => {
     const stopReader = () =>
@@ -181,7 +177,7 @@ export const useEegListener = (
       stopReader();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, sourceType, esp32PortName]);
+  }, [active, esp32PortName]);
 
   return { displayBandPowers, rawBandPowers, isConnected, poorSignalLevel };
 };

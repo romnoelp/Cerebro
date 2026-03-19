@@ -3,6 +3,7 @@ export type {
   FocusReading,
   HeadsetConnectionStatus,
 } from "./eegReading";
+export type { SessionMode } from "./sessionMode";
 export type { SessionSummary } from "./sessionSummary";
 export type { Screen, AppFile } from "./screenTypes";
 export type {

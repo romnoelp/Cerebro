@@ -7,6 +7,8 @@ import { motion } from "motion/react";
 import { ease } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { ChartLineInteractive } from "@/components/chart-line-interactive";
+import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { REQUIRED_MODEL_DEFINITIONS } from "@/adapters/modelConfig";
 import {
@@ -47,6 +49,10 @@ const SessionScreen = () => {
   const setHasSessionStarted = useHeadsetStore((s) => s.setHasSessionStarted);
   const subjectName = useHeadsetStore((s) => s.subjectName);
   const setSubjectName = useHeadsetStore((s) => s.setSubjectName);
+  const sessionMode = useHeadsetStore((s) => s.sessionMode);
+  const setSessionMode = useHeadsetStore((s) => s.setSessionMode);
+  const attentionThreshold = useHeadsetStore((s) => s.attentionThreshold);
+  const setAttentionThreshold = useHeadsetStore((s) => s.setAttentionThreshold);
   const [showNameDialog, setShowNameDialog] = React.useState(false);
   const [showCalibrationDialog, setShowCalibrationDialog] =
     React.useState(false);
@@ -82,6 +88,8 @@ const SessionScreen = () => {
 
   const stagedModelMap = useModelStore((s) => s.stagedModelMap);
   const modelReady = useModelStore((s) => s.modelReady);
+  const isModelRequired = useModelStore((s) => s.isModelRequired);
+  const isSessionReady = useModelStore((s) => s.isSessionReady);
   const handleLoadModel = useModelStore((s) => s.handleLoadModel);
   const { displayBandPowers, rawBandPowers, isConnected, poorSignalLevel } =
     useEegListener(isScanning || showCalibrationDialog, eegSource);
@@ -92,6 +100,9 @@ const SessionScreen = () => {
   const { elapsedSeconds, reset: resetTimer } = useSessionTimer(isScanning);
   useSignalMonitor({ active: isScanning, isConnected, poorSignalLevel });
   const recorder = useSessionRecorder();
+  const modelRequired = isModelRequired(sessionMode);
+  const modelGateSatisfied = isSessionReady(sessionMode);
+  const canEditSessionSetup = !isScanning && !hasSessionStarted;
   const addSession = useSessionStore((store) => store.addSession);
   const {
     calibrationStep,
@@ -128,7 +139,7 @@ const SessionScreen = () => {
       setIsScanning(true);
       sileo.success({
         title: "Scanning resumed",
-        description: `Live EEG acquisition for ${subjectName} resumed.`,
+        description: `EEG acquisition for ${subjectName} resumed.`,
       });
     } else {
       setShowNameDialog(true);
@@ -170,7 +181,7 @@ const SessionScreen = () => {
     setHasSessionStarted(true);
     sileo.success({
       title: "Scanning started",
-      description: `Live EEG acquisition for ${subjectName} is active.`,
+      description: `EEG acquisition for ${subjectName} is active.`,
     });
   };
 
@@ -192,10 +203,10 @@ const SessionScreen = () => {
     }
   }, [isScanning, isConnected]);
 
-  // To record the focus label alongside the raw EEG packet. When the model is
-  // not yet loaded, label -1 is stored so no packet is silently dropped.
+  // Recording mode skips inference entirely and labels rows from attention.
+  // Live mode keeps model inference and stores fallback labels on failures.
   const recordEegPacket = (bandPowers: EegBandPowers) => {
-    if (modelReady) {
+    if (sessionMode === "live" && modelReady) {
       focusClassifier
         .classify(bandPowers)
         .then((focusReading: FocusReading) => {
@@ -213,15 +224,24 @@ const SessionScreen = () => {
           reportInferenceIssue("Focus inference request failed", error);
           recorder.appendEegRecord(bandPowers, undefined);
         });
-    } else {
-      recorder.appendEegRecord(bandPowers, undefined);
+      return;
     }
+
+    recorder.appendEegRecord(bandPowers, undefined);
+  };
+
+  const handleThresholdChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const numericValue = Number(event.target.value);
+    if (Number.isNaN(numericValue)) return;
+    setAttentionThreshold(numericValue);
   };
 
   React.useEffect(() => {
     if (!isScanning || !rawBandPowers) return;
     recordEegPacket(rawBandPowers);
-    // rawBandPowers reference changes on every new TGC packet — that is the
+    // rawBandPowers reference changes on every new EEG packet — that is the
     // intended trigger; suppressing the exhaustive-deps warning is deliberate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawBandPowers]);
@@ -333,7 +353,7 @@ const SessionScreen = () => {
             <div className="flex flex-col gap-0.5">
               <h1 className="text-xl font-semibold tracking-tight">Session</h1>
               <p className="text-xs text-muted-foreground tracking-wide">
-                Live EEG acquisition &amp; model inference
+                EEG acquisition, recording, and live inference
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -411,7 +431,7 @@ const SessionScreen = () => {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 pb-3 flex-1 min-h-0 @3xl/main:grid-cols-[1fr_320px] @3xl/main:items-stretch">
+          <div className="grid grid-cols-1 gap-3 px-4 lg:px-6 pb-3 flex-1 min-h-0 @3xl/main:grid-cols-[1fr_400px] @3xl/main:items-stretch">
             <ChartLineInteractive
               isRunning={isScanning}
               shouldReset={shouldResetChart}
@@ -420,17 +440,101 @@ const SessionScreen = () => {
               modelFocusLevel={recorder.rollingFocusLevel}
               className="flex-1 min-h-0"
             />
-            <div className={cn("flex flex-col gap-3", "overflow-y-auto")}>
-              <ModelManagementCard
-                loadedModels={stagedModelMap}
-                modelReady={modelReady}
-                onLoadModel={handleLoadModel}
-              />
+            <div
+              className={cn(
+                "flex min-w-0 flex-col gap-3",
+                "overflow-y-auto overflow-x-hidden",
+              )}>
+              {sessionMode === "live" && (
+                <ModelManagementCard
+                  loadedModels={stagedModelMap}
+                  modelReady={modelReady}
+                  modelRequired={modelRequired}
+                  onLoadModel={handleLoadModel}
+                />
+              )}
+
+              <div className="rounded-xl border border-border/50 bg-background/10 backdrop-blur-md px-4 py-3.5">
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-sm font-semibold leading-tight">
+                      Session Mode
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
+                      Select mode before starting the session.
+                    </p>
+                  </div>
+
+                  <ToggleGroup
+                    type="single"
+                    value={sessionMode}
+                    onValueChange={(value) => {
+                      if (value === "recording" || value === "live") {
+                        setSessionMode(value);
+                      }
+                    }}
+                    disabled={!canEditSessionSetup}
+                    className="w-full"
+                    variant="outline">
+                    <ToggleGroupItem
+                      value="recording"
+                      className="flex-1 justify-center text-xs">
+                      Recording Mode
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="live"
+                      className="flex-1 justify-center text-xs">
+                      Live Session Mode
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+
+                  <div className="space-y-1 rounded-md border border-border/40 bg-background/20 px-2.5 py-2">
+                    <p className="text-[11px] font-medium">Recording Mode</p>
+                    <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                      Captures labeled EEG data using the headset&apos;s
+                      attention score. Use this to collect training data.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1 rounded-md border border-border/40 bg-background/20 px-2.5 py-2">
+                    <p className="text-[11px] font-medium">Live Session Mode</p>
+                    <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                      Classifies your focus state in real time using the trained
+                      model.
+                    </p>
+                  </div>
+
+                  {sessionMode === "recording" && (
+                    <div className="space-y-1.5 pt-1">
+                      <label
+                        htmlFor="attention-threshold"
+                        className="text-[11px] font-medium">
+                        Focus threshold (attention score)
+                      </label>
+                      <Input
+                        id="attention-threshold"
+                        type="number"
+                        min={40}
+                        max={90}
+                        step={5}
+                        value={attentionThreshold}
+                        onChange={handleThresholdChange}
+                        disabled={!canEditSessionSetup}
+                        className="h-8 text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground/70 leading-snug">
+                        Packets with attention &gt;= this value are labeled
+                        Focused.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <SessionControlsCard
                 isScanning={isScanning}
                 hasStarted={hasSessionStarted}
-                allLoaded={modelReady && esp32Port !== ""}
+                allLoaded={modelGateSatisfied && esp32Port !== ""}
                 onStartScanning={handleStartScanning}
                 onStopScanning={handleStopScanning}
                 onExport={handleExport}

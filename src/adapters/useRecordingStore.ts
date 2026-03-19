@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import type { EegBandPowers, FocusReading, SessionSummary } from "@/domain";
+import type {
+  EegBandPowers,
+  FocusReading,
+  SessionMode,
+  SessionSummary,
+} from "@/domain";
 
 // One row recorded per accepted EEG packet (~1 Hz).
 export type EegRecordRow = {
@@ -15,9 +20,15 @@ export type EegRecordRow = {
   attention: number;
   meditation: number;
   poorSignalLevel: number;
-  focusLabel: number; // 0 = Unfocused, 1 = Focused, −1 = model not loaded
+  focusLabel: number; // 0 = Unfocused, 1 = Focused, −1 = unavailable
   focusPrediction: string;
 };
+
+interface AppendRecordOptions {
+  sessionMode: SessionMode;
+  attentionThreshold: number;
+  focusReading?: FocusReading;
+}
 
 export interface BuildSessionSummaryOptions {
   subjectName: string;
@@ -59,13 +70,13 @@ interface RecordingStore {
   resetFocusWindow: () => void;
 
   /**
-   * To append one row per accepted tgc-data packet. Pass `focusReading` as
+   * To append one row per accepted EEG packet. Pass `focusReading` as
    * undefined when the model is not loaded — the row is recorded with label
    * -1 and "N/A" so no packet is silently dropped.
    */
   appendEegRecord: (
     bandPowers: EegBandPowers,
-    focusReading: FocusReading | undefined,
+    options: AppendRecordOptions,
   ) => void;
 
   /** To serialize all accumulated rows to a CSV string ready for disk write. */
@@ -89,7 +100,21 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
     set({ recentFocusLabels: [] });
   },
 
-  appendEegRecord: (bandPowers, focusReading) => {
+  appendEegRecord: (bandPowers, options) => {
+    const { sessionMode, attentionThreshold, focusReading } = options;
+    const focusPrediction =
+      sessionMode === "recording" ? "N/A" : (focusReading?.labelName ?? "N/A");
+    const focusLabel =
+      sessionMode === "recording"
+        ? bandPowers.attention >= attentionThreshold
+          ? 1
+          : 0
+        : focusPrediction === "Focused"
+          ? 1
+          : focusPrediction === "Unfocused"
+            ? 0
+            : -1;
+
     accumulatedRows.push({
       timestamp: new Date().toISOString(),
       delta: bandPowers.delta,
@@ -103,13 +128,15 @@ export const useRecordingStore = create<RecordingStore>((set) => ({
       attention: bandPowers.attention,
       meditation: bandPowers.meditation,
       poorSignalLevel: bandPowers.poorSignalLevel,
-      focusLabel: focusReading?.label ?? -1,
-      focusPrediction: focusReading?.labelName ?? "N/A",
+      focusLabel,
+      focusPrediction,
     });
+
     set((state) => {
-      // Only keep valid model labels (0 or 1) in the rolling window — skip −1
-      // (model not loaded) so the heuristic isn't diluted by unclassified packets.
-      const label = focusReading?.label;
+      // Only keep valid binary labels in the rolling window.
+      // In recording mode this comes from attention thresholding.
+      // In live mode this comes from model prediction.
+      const label = focusLabel;
       const next =
         label === 0 || label === 1
           ? [...state.recentFocusLabels, label].slice(-ROLLING_WINDOW)

@@ -8,6 +8,7 @@ import {
   type ModelDefinition,
 } from "./modelConfig";
 import { logger } from "@/lib/logger";
+import type { SessionMode } from "@/domain";
 
 const pickModelFile = async (): Promise<string | null> => {
   const selected = await open({
@@ -43,6 +44,8 @@ interface ModelLoadingStore {
   /** OS paths accumulated until both are known, then forwarded to the backend. */
   pendingPaths: Record<ModelKey, string | null>;
   modelReady: boolean;
+  isModelRequired: (mode: SessionMode) => boolean;
+  isSessionReady: (mode: SessionMode) => boolean;
   handleLoadModel: () => Promise<void>;
   /** Resets all model state (e.g. after a fatal load error). */
   resetModels: () => void;
@@ -56,6 +59,8 @@ const initialModelLoadingState = {
 
 export const useModelStore = create<ModelLoadingStore>((set, get) => ({
   ...initialModelLoadingState,
+  isModelRequired: (mode) => mode === "live",
+  isSessionReady: (mode) => mode === "recording" || get().modelReady,
 
   handleLoadModel: async () => {
     try {

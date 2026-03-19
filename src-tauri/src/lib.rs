@@ -6,12 +6,10 @@ pub mod use_cases;
 use std::sync::{Arc, Mutex};
 
 use infrastructure::{
-    app_state::{
-        Esp32ConnectionState, HeadsetConnectionState, InferenceRunnerState, TgcConnectionState,
-    },
+    app_state::{Esp32ConnectionState, HeadsetConnectionState, InferenceRunnerState},
     tauri_commands::{
         get_focus_prediction, get_mock_prediction, list_serial_ports, load_model_files,
-        load_sessions, save_session, start_esp32, start_tgc, stop_esp32, stop_tgc,
+        load_sessions, save_session, start_esp32, stop_esp32,
     },
 };
 use tauri::Manager;
@@ -29,14 +27,11 @@ pub fn run() {
             // The inference runner starts as None — the user loads files via
             // the Model Setup card, which calls load_model_files at runtime.
             app.manage(Arc::new(Mutex::new(None)) as InferenceRunnerState);
-            app.manage(Mutex::new(HeadsetConnectionState::default()) as TgcConnectionState);
             app.manage(Mutex::new(HeadsetConnectionState::default()) as Esp32ConnectionState);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             load_model_files,
-            start_tgc,
-            stop_tgc,
             list_serial_ports,
             start_esp32,
             stop_esp32,

@@ -1,5 +1,6 @@
 import { IconUpload } from "@tabler/icons-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { LiquidButton } from "@/components/animate-ui/components/buttons/liquid";
 import { cn } from "@/lib/utils";
 import { requiredModels, ModelKey } from "../constants";
@@ -7,12 +8,14 @@ import { requiredModels, ModelKey } from "../constants";
 interface ModelManagementCardProps {
   loadedModels: Record<ModelKey, boolean>;
   modelReady: boolean;
+  modelRequired: boolean;
   onLoadModel: () => void;
 }
 
 export const ModelManagementCard = ({
   loadedModels,
   modelReady,
+  modelRequired,
   onLoadModel,
 }: ModelManagementCardProps) => {
   return (
@@ -28,10 +31,17 @@ export const ModelManagementCard = ({
                 Model Setup
               </CardTitle>
               <p className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
-                Load required model files
+                {modelRequired
+                  ? "Load required model files"
+                  : "Load model files (optional for recording)"}
               </p>
             </div>
           </div>
+          {!modelRequired && (
+            <Badge variant="outline" className="text-[10px] px-2 py-0.5">
+              Required for Live mode only
+            </Badge>
+          )}
           <LiquidButton
             size="sm"
             variant="default"

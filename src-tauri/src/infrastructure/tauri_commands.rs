@@ -7,15 +7,10 @@ use crate::{
         file_session_repository::FileSessionRepository,
         onnx_inference_runner::{ModelFilePaths, OnnxInferenceRunner},
     },
-    domain::{
-        eeg_packet::EegPacket,
-        focus_reading::FocusReading,
-        session_summary::SessionSummary,
-    },
+    domain::{eeg_packet::EegPacket, focus_reading::FocusReading, session_summary::SessionSummary},
     infrastructure::{
-        app_state::{Esp32ConnectionState, InferenceRunnerState, TgcConnectionState},
+        app_state::{Esp32ConnectionState, InferenceRunnerState},
         esp32_reader::{list_available_serial_ports, run_esp32_reader, Esp32ReaderContext},
-        tgc_reader::{run_tgc_reader, TgcReaderContext},
     },
     use_cases::{
         classify_eeg_packet::classify_eeg_packet,
@@ -36,35 +31,6 @@ pub fn load_model_files(
 ) -> Result<(), String> {
     let runner = OnnxInferenceRunner::load(&paths)?;
     *runner_state.lock().map_err(|error| error.to_string())? = Some(runner);
-    Ok(())
-}
-
-/// To start streaming EEG data from the ThinkGear Connector TCP service.
-/// Idempotent — a session already in progress is left unchanged.
-#[tauri::command]
-pub fn start_tgc(
-    app: AppHandle,
-    tgc_state: State<TgcConnectionState>,
-) -> Result<(), String> {
-    let mut guard = tgc_state.lock().map_err(|error| error.to_string())?;
-    if guard.is_running() {
-        return Ok(());
-    }
-    guard.reset();
-    let ctx = TgcReaderContext {
-        app,
-        stop_flag: Arc::clone(&guard.stop_flag),
-    };
-    guard.thread = Some(std::thread::spawn(move || run_tgc_reader(ctx)));
-    Ok(())
-}
-
-/// To signal the TGC reader thread to exit cleanly within one read-timeout
-/// cycle (~500 ms).
-#[tauri::command]
-pub fn stop_tgc(tgc_state: State<TgcConnectionState>) -> Result<(), String> {
-    let mut guard = tgc_state.lock().map_err(|error| error.to_string())?;
-    guard.stop();
     Ok(())
 }
 
@@ -192,8 +158,7 @@ fn resolve_sessions_index_path(app: &AppHandle) -> Result<std::path::PathBuf, St
 /// write succeeds, keeping the two stores consistent under failure.
 #[tauri::command]
 pub fn save_session(app: AppHandle, request: SaveSessionRequest) -> Result<(), String> {
-    std::fs::write(&request.csv_path, request.csv_content)
-        .map_err(|error| error.to_string())?;
+    std::fs::write(&request.csv_path, request.csv_content).map_err(|error| error.to_string())?;
     let index_path = resolve_sessions_index_path(&app)?;
     let mut repository = FileSessionRepository::new(index_path);
     persist_session_summary(request.summary, &mut repository).map_err(|error| error.to_string())

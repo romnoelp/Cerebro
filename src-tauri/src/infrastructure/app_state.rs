@@ -6,7 +6,6 @@ use std::sync::{
 use crate::adapters::onnx_inference_runner::OnnxInferenceRunner;
 
 /// Shared mutable state for one headset reader thread.
-/// Both the TGC TCP reader and the ESP32 serial reader use this same structure.
 pub struct HeadsetConnectionState {
     pub stop_flag: Arc<AtomicBool>,
     pub thread: Option<std::thread::JoinHandle<()>>,
@@ -46,7 +45,6 @@ impl Default for HeadsetConnectionState {
     }
 }
 
-pub type TgcConnectionState = Mutex<HeadsetConnectionState>;
 /// Separate Tauri-managed state for the ESP32 serial reader.
 pub type Esp32ConnectionState = Mutex<HeadsetConnectionState>;
 /// Arc is required so load_model_files can replace the inner Option atomically

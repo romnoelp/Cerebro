@@ -2,7 +2,7 @@ import * as React from "react";
 import { motion } from "motion/react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 import { cn } from "@/lib/utils";
-import { type EegBandPowers as TgcBandData } from "@/domain";
+import { type EegBandPowers as EegBandData } from "@/domain";
 
 import {
   Card,
@@ -20,7 +20,7 @@ import {
 
 const WINDOW = 30;
 
-// All 8 ThinkGear bands — keys match ThinkGear Connector JSON exactly
+// All 8 EEG bands reported by the headset packet.
 const BANDS = [
   {
     key: "delta",
@@ -118,7 +118,7 @@ export function ChartLineInteractive({
   shouldReset?: boolean;
   /** Live band power packet from the headset. When provided, real data drives
    *  the chart. */
-  liveData?: TgcBandData;
+  liveData?: EegBandData;
   /** Rolling majority-vote result from the ONNX model (last 5 packets).
    *  When provided this overrides the local β/θ heuristic so the chart
    *  label matches what is written to the CSV. undefined = window not yet
@@ -171,7 +171,7 @@ export function ChartLineInteractive({
     }
   }, [shouldReset, emptyWindow]);
 
-  // Real-data push — fires whenever a new TGC packet arrives.
+  // Real-data push — fires whenever a new EEG packet arrives.
   React.useEffect(() => {
     if (!isRunning || liveData === undefined) return;
     counterRef.current += 1;

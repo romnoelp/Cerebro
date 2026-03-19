@@ -11,34 +11,25 @@ import { logger } from "@/lib/logger";
 export const startEegReader = async (
   source: EegSourceConfig,
 ): Promise<void> => {
-  if (source.type === "esp32") {
-    await invoke("start_esp32", { port: source.portName });
-  } else {
-    await invoke("start_tgc");
-  }
+  await invoke("start_esp32", { port: source.portName });
 };
 
 export const stopEegReader = async (source: EegSourceConfig): Promise<void> => {
-  if (source.type === "esp32") {
-    await invoke("stop_esp32").catch((error) =>
-      logger.ioError("stop_esp32 failed", error),
-    );
-  } else {
-    await invoke("stop_tgc").catch((error) =>
-      logger.ioError("stop_tgc failed", error),
-    );
-  }
+  void source;
+  await invoke("stop_esp32").catch((error) =>
+    logger.ioError("stop_esp32 failed", error),
+  );
 };
 
 export const subscribeToEegPackets = (
   onPacket: (packet: EegBandPowers) => void,
 ): Promise<UnlistenFn> =>
-  listen<EegBandPowers>("tgc-data", (event) => onPacket(event.payload));
+  listen<EegBandPowers>("eeg-data", (event) => onPacket(event.payload));
 
 export const subscribeToHeadsetStatus = (
   onStatus: (status: HeadsetConnectionStatus) => void,
 ): Promise<UnlistenFn> =>
-  listen<HeadsetConnectionStatus>("tgc-status", (event) =>
+  listen<HeadsetConnectionStatus>("eeg-status", (event) =>
     onStatus(event.payload),
   );
 
