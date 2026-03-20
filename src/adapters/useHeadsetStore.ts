@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { SessionMode } from "@/domain";
 
-const DEFAULT_ATTENTION_THRESHOLD = 60;
+const DEFAULT_ATTENTION_THRESHOLD = 50;
 const MIN_ATTENTION_THRESHOLD = 40;
 const MAX_ATTENTION_THRESHOLD = 90;
 
