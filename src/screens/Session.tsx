@@ -135,6 +135,8 @@ const SessionScreen = () => {
   );
 
   const handleStartScanning = () => {
+    // New scan cycle: clear stale connection history from prior runs.
+    wasConnectedRef.current = false;
     if (hasSessionStarted) {
       setIsScanning(true);
       sileo.success({
@@ -159,6 +161,7 @@ const SessionScreen = () => {
   };
 
   const handleCancelSession = () => {
+    wasConnectedRef.current = false;
     setShowNameDialog(false);
     setShowCalibrationDialog(false);
     setSubjectName("");
@@ -175,6 +178,7 @@ const SessionScreen = () => {
 
   const handleCalibrationComplete = () => {
     setShowCalibrationDialog(false);
+    wasConnectedRef.current = false;
     recorder.resetFocusWindow();
     setShouldResetChart(true);
     setIsScanning(true);
@@ -254,6 +258,7 @@ const SessionScreen = () => {
 
   /** To clear all session state after the recording ends without any data to save. */
   const resetAfterSession = () => {
+    wasConnectedRef.current = false;
     recorder.clearRecording();
     resetTimer();
     setSubjectName("");

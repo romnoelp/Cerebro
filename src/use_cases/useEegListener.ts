@@ -119,10 +119,6 @@ export const useEegListener = (
       return;
     }
 
-    startEegReader(source).catch((error) =>
-      logger.ioError("EEG reader start failed", error),
-    );
-
     // isCleaned guards against a race where the cleanup function runs before
     // the subscription promises resolve. Without it, unlistenPackets and
     // unlistenStatus would both be undefined at cleanup time, leaving stale
@@ -133,6 +129,9 @@ export const useEegListener = (
     let unlistenStatus: (() => void) | undefined;
 
     subscribeToEegPackets((packet) => {
+      // Data packets imply a live serial stream, so treat them as authoritative
+      // even if a one-shot "connected" status event was missed during startup.
+      setIsConnected(true);
       resetWatchdog();
       setPoorSignalLevel(packet.poorSignalLevel);
       if (packet.poorSignalLevel < POOR_SIGNAL_REJECTION_THRESHOLD) {
@@ -168,6 +167,12 @@ export const useEegListener = (
       .catch((error) =>
         logger.ioError("Headset status subscription failed", error),
       );
+
+    // Start the backend reader only after listeners are registered to avoid
+    // dropping the initial "connected" status event on fast restarts.
+    startEegReader(source).catch((error) =>
+      logger.ioError("EEG reader start failed", error),
+    );
 
     return () => {
       isCleaned = true;
