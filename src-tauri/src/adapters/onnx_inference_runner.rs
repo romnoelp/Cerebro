@@ -9,11 +9,7 @@ use crate::domain::{
     ports::InferenceRunner,
 };
 
-// Feature index of the β/θ engagement ratio in the 11-element feature vector.
-// The Python training pipeline zeroes this index before training when unlabelled
-// datasets are included, preventing the model from learning a trivial threshold.
-// Inference must apply the same zeroing so the runtime distribution matches training.
-const BETA_THETA_RATIO_FEATURE_INDEX: usize = 8;
+const EXPECTED_FEATURE_DIMENSION: usize = 13;
 
 // Matches the JSON produced by scaler_params.json (sklearn StandardScaler export).
 #[derive(Debug, Deserialize)]
@@ -57,6 +53,8 @@ impl OnnxInferenceRunner {
         let params: ScalerParams = serde_json::from_str(&scaler_json)
             .map_err(|error| format!("Bad scaler JSON: {error}"))?;
 
+        validate_scaler_dimensions(&params)?;
+
         Ok(Self {
             session,
             mean: params.mean_,
@@ -69,16 +67,15 @@ impl OnnxInferenceRunner {
 impl InferenceRunner for OnnxInferenceRunner {
     fn predict(&mut self, packet: &EegPacket) -> Result<FocusReading, AppError> {
         let features = extract_feature_vector(packet, &mut self.prev_delta_relative);
-        let mut normalized = apply_standard_scaler(&features, &self.mean, &self.scale);
-        blind_beta_theta_ratio(&mut normalized);
+        let normalized = apply_standard_scaler(&features, &self.mean, &self.scale);
         run_onnx_session(&mut self.session, normalized).map_err(AppError::InferenceFailure)
     }
 }
 
-// To produce the 11-element feature vector consumed by the ONNX model.
+// To produce the 13-element feature vector consumed by the ONNX model.
 // Must stay in sync with Python's `_features_from_bands` so that the
 // training distribution and runtime distribution are identical.
-fn extract_feature_vector(packet: &EegPacket, prev_delta_relative: &mut f32) -> [f32; 11] {
+fn extract_feature_vector(packet: &EegPacket, prev_delta_relative: &mut f32) -> [f32; 13] {
     let absolute_powers = [
         packet.delta as f32,
         packet.theta as f32,
@@ -111,12 +108,14 @@ fn extract_feature_vector(packet: &EegPacket, prev_delta_relative: &mut f32) -> 
         beta / (theta + 1e-10), // β/θ ratio: rises when attention is high
         alpha / (beta + 1e-10), // α/β ratio: rises during relaxation
         temporal_delta,         // Δdelta: stationarity marker across windows
+        packet.attention as f32,
+        packet.meditation as f32,
     ]
 }
 
 // DDQN requires normalized input; scaler was fitted on training data, not live signal.
 // Mirrors sklearn StandardScaler.transform: (x − mean) / scale.
-fn apply_standard_scaler(features: &[f32; 11], mean: &[f32], scale: &[f32]) -> Vec<f32> {
+fn apply_standard_scaler(features: &[f32; 13], mean: &[f32], scale: &[f32]) -> Vec<f32> {
     features
         .iter()
         .enumerate()
@@ -124,17 +123,37 @@ fn apply_standard_scaler(features: &[f32; 11], mean: &[f32], scale: &[f32]) -> V
         .collect()
 }
 
-// To match the training-time feature blinding, zeroes the β/θ ratio slot so the
-// model receives the same input distribution it was trained on.
-fn blind_beta_theta_ratio(normalized_features: &mut Vec<f32>) {
-    if let Some(slot) = normalized_features.get_mut(BETA_THETA_RATIO_FEATURE_INDEX) {
-        *slot = 0.0;
+fn validate_scaler_dimensions(params: &ScalerParams) -> Result<(), String> {
+    if params.mean_.len() != EXPECTED_FEATURE_DIMENSION {
+        return Err(format!(
+            "Bad scaler JSON: expected mean_ length {} but got {}",
+            EXPECTED_FEATURE_DIMENSION,
+            params.mean_.len()
+        ));
     }
+
+    if params.scale_.len() != EXPECTED_FEATURE_DIMENSION {
+        return Err(format!(
+            "Bad scaler JSON: expected scale_ length {} but got {}",
+            EXPECTED_FEATURE_DIMENSION,
+            params.scale_.len()
+        ));
+    }
+
+    if params.n_features_in_ != EXPECTED_FEATURE_DIMENSION {
+        return Err(format!(
+            "Bad scaler JSON: expected n_features_in_ {} but got {}",
+            EXPECTED_FEATURE_DIMENSION, params.n_features_in_
+        ));
+    }
+
+    Ok(())
 }
 
 fn run_onnx_session(session: &mut Session, normalized: Vec<f32>) -> Result<FocusReading, String> {
-    let input = Tensor::<f32>::from_array(([1i64, 1i64, 11i64], normalized))
-        .map_err(|error: ort::Error| error.to_string())?;
+    let input =
+        Tensor::<f32>::from_array(([1i64, 1i64, EXPECTED_FEATURE_DIMENSION as i64], normalized))
+            .map_err(|error: ort::Error| error.to_string())?;
 
     let outputs = session
         .run(ort::inputs!["eeg_stream" => input])
