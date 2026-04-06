@@ -105,12 +105,20 @@ fn extract_feature_vector(packet: &EegPacket, prev_delta_relative: &mut f32) -> 
         band_relatives[5],
         band_relatives[6],
         band_relatives[7],
-        beta / (theta + 1e-10), // β/θ ratio: rises when attention is high
-        alpha / (beta + 1e-10), // α/β ratio: rises during relaxation
+        ratio_feature(beta, theta), // Matches notebook: log1p(clip(β/θ, 0, 12))
+        ratio_feature(alpha, beta), // Matches notebook: log1p(clip(α/β, 0, 12))
         temporal_delta,         // Δdelta: stationarity marker across windows
         packet.attention as f32,
         packet.meditation as f32,
     ]
+}
+
+// Notebook parity transform for engagement ratios.
+// Equivalent to: np.log1p(np.clip(numerator / (denominator + 1e-10), 0.0, 12.0))
+fn ratio_feature(numerator: f32, denominator: f32) -> f32 {
+    let raw_ratio = numerator / (denominator + 1e-10);
+    let clipped = raw_ratio.clamp(0.0, 12.0);
+    (1.0 + clipped).ln()
 }
 
 // DDQN requires normalized input; scaler was fitted on training data, not live signal.

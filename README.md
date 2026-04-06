@@ -96,6 +96,10 @@ Two files must be staged before scanning can start:
 | `cerebro_unified.onnx` | Unified TCN+DDQN ONNX graph                                |
 | `scaler_params.json`   | StandardScaler mean/scale parameters used in preprocessing |
 
+Both artefacts must come from the same training run and the same feature schema.
+Current production pipeline expects **13 input features**:
+8 relative band powers + beta/theta + alpha/beta + delta-change + attention + meditation.
+
 Flow:
 
 1. User loads files via Model Setup card.
