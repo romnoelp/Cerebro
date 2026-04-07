@@ -11,6 +11,21 @@ An undergraduate thesis project exploring EEG-based focus classification in acad
 
 ---
 
+## Source of Truth
+
+The canonical source of model behavior is the research notebook:
+
+- `../Notebook/CerebroCore.ipynb`
+
+This app must stay in parity with the notebook for:
+
+- 13-feature extraction contract
+- ONNX IO contract: `eeg_stream` -> `focus_prediction`
+- deployment artifact pair: `cerebro_unified.onnx` + `scaler_params.json`
+- signal quality gating (`poorSignalLevel >= 50` rejected)
+
+---
+
 ## Overview
 
 Cerebro investigates whether EEG signals can classify focus states during academic tasks. It supports live EEG streaming, model inference, session recording, CSV export, and dashboard persistence.
@@ -43,7 +58,7 @@ Current runtime is ESP32 serial only:
 
 ### Active Path
 
-```
+```text
 MindWave Mobile 2 -> Bluetooth -> ESP32 firmware -> USB serial -> esp32_reader.rs
 
 Tauri events (eeg-data, eeg-status)
@@ -51,7 +66,7 @@ Tauri events (eeg-data, eeg-status)
 -> live chart + recorder + inference
 ```
 
-### Tauri commands (`src-tauri/src/infrastructure/tauri_commands.rs`)
+### Tauri Commands (`src-tauri/src/infrastructure/tauri_commands.rs`)
 
 | Command                | Purpose                                                          |
 | ---------------------- | ---------------------------------------------------------------- |
@@ -64,11 +79,11 @@ Tauri events (eeg-data, eeg-status)
 | `save_session`         | Write CSV to disk and append summary to `sessions.json`          |
 | `load_sessions`        | Load persisted session summaries                                 |
 
-### Signal quality gating
+### Signal Quality Gating
 
-`useEegListener` rejects packets with `poorSignalLevel >= 50` before they reach display/inference/recording pipelines. It also applies a watchdog timeout so a silent source can still surface as disconnected quality state.
+`useEegListener` rejects packets with `poorSignalLevel >= 50` before they reach display, inference, or recording paths. It also applies a watchdog timeout so a silent source can still surface as disconnected quality state.
 
-### EEG band powers
+### EEG Band Powers
 
 The app tracks 8 TGAM band powers:
 
@@ -83,29 +98,64 @@ The app tracks 8 TGAM band powers:
 | Low Gamma  | 31 - 39.75 Hz   | `lowGamma`  |
 | Mid Gamma  | 41 - 49.75 Hz   | `midGamma`  |
 
-Raw band powers are stored for CSV/inference, while chart display uses relative percentages (each band divided by total power) for stable visualization.
+Raw band powers are stored for CSV and inference, while chart display uses relative percentages (each band divided by total power) for stable visualization.
+
+---
+
+## Notebook-Aligned ML Contract
+
+The Rust inference path in `src-tauri/src/adapters/onnx_inference_runner.rs` mirrors notebook feature engineering.
+
+Runtime feature construction:
+
+1. Build relative band powers from the 8 absolute bands.
+2. Compute ratio features:
+   - `beta_theta_ratio = log1p(clip(beta/theta, 0, 12))`
+   - `alpha_beta_ratio = log1p(clip(alpha/beta, 0, 12))`
+3. Compute temporal derivative:
+   - `d_delta = delta_rel[t] - delta_rel[t-1]`
+4. Append `attention` and `meditation`.
+5. Apply scaler transform using exported scaler params.
+
+Expected 13-feature order:
+
+1. `delta_rel`
+2. `theta_rel`
+3. `lowAlpha_rel`
+4. `highAlpha_rel`
+5. `lowBeta_rel`
+6. `highBeta_rel`
+7. `lowGamma_rel`
+8. `midGamma_rel`
+9. `beta_theta_ratio`
+10. `alpha_beta_ratio`
+11. `d_delta`
+12. `attention`
+13. `meditation`
 
 ---
 
 ## ML Models
 
-Two files must be staged before scanning can start:
+Two files must be staged before live inference can start:
 
-| File                   | Role                                                       |
-| ---------------------- | ---------------------------------------------------------- |
-| `cerebro_unified.onnx` | Unified TCN+DDQN ONNX graph                                |
-| `scaler_params.json`   | StandardScaler mean/scale parameters used in preprocessing |
+| File                   | Role                                            |
+| ---------------------- | ----------------------------------------------- |
+| `cerebro_unified.onnx` | Unified TCN+DDQN ONNX graph                     |
+| `scaler_params.json`   | Notebook-exported scaler parameters for runtime |
 
-Both artefacts must come from the same training run and the same feature schema.
-Current production pipeline expects **13 input features**:
-8 relative band powers + beta/theta + alpha/beta + delta-change + attention + meditation.
+Compatibility requirements:
+
+- Load ONNX and scaler from the same notebook run.
+- Scaler JSON must include `mean_`, `scale_`, and `n_features_in_`.
+- `n_features_in_` must match `13`.
 
 Flow:
 
 1. User loads files via Model Setup card.
-2. Frontend validates extension/type and stages both paths.
-3. `load_model_files` activates the backend runner.
-4. `get_focus_prediction` returns `Focused`/`Unfocused` labels per accepted packet.
+2. Frontend validates extension and stages both paths.
+3. `load_model_files` initializes backend inference runner.
+4. `get_focus_prediction` returns `Focused` or `Unfocused` per accepted packet.
 
 Inference runs natively in Rust via ONNX Runtime. No Python sidecar is required.
 
@@ -113,7 +163,7 @@ Inference runs natively in Rust via ONNX Runtime. No Python sidecar is required.
 
 ## Application Structure
 
-```
+```text
 src/
 ├── adapters/
 │   ├── modelConfig.ts              # Required model file definitions
@@ -140,15 +190,15 @@ src/
 │   ├── Session.tsx                 # Live acquisition and controls
 │   └── session/components/*        # Session-specific UI blocks
 └── components/
-     ├── chart-line-interactive.tsx  # Live 8-band chart + focus bar
-     ├── chart-area-interactive.tsx  # Historical Alpha/Theta trends
-     └── section-cards.tsx           # Summary metric cards
+    ├── chart-line-interactive.tsx  # Live 8-band chart + focus bar
+    ├── chart-area-interactive.tsx  # Historical Alpha/Theta trends
+    └── section-cards.tsx           # Summary metric cards
 
 src-tauri/src/
 ├── adapters/
 │   ├── onnx_inference_runner.rs    # ONNX/scaler runtime wrapper
 │   ├── file_session_repository.rs  # sessions.json persistence
-│   ├── esp32_packet_parser.rs      # Serial JSON parsing
+│   └── esp32_packet_parser.rs      # Serial JSON parsing
 ├── domain/
 │   ├── eeg_packet.rs               # EEG packet model
 │   ├── focus_reading.rs            # Inference output model
@@ -167,7 +217,7 @@ src-tauri/src/
 
 ## Session Flow (Current UI)
 
-```
+```text
 1. Pre-session setup
     - Select COM port (ESP32)
     - Enter subject name and complete calibration
@@ -185,7 +235,7 @@ src-tauri/src/
     - start_esp32 is invoked with selected port
 
 4. Acquisition and labeling
-    - Reader emits eeg-data/eeg-status events
+    - Reader emits eeg-data and eeg-status events
     - poorSignalLevel >= 50 packets are rejected
     - Accepted packets feed chart and recorder
     - Live Session Mode:
@@ -195,8 +245,8 @@ src-tauri/src/
     - Recording Mode:
       - Skips inference IPC
       - focusLabel derived from attention >= threshold
-      - focusPrediction is "N/A"
-    - Session can pause/resume without losing buffered rows
+      - focusPrediction is N/A
+    - Session can pause and resume without losing buffered rows
     - Mid-session disconnect triggers a save-and-end dialog
 
 5. Export
@@ -261,5 +311,6 @@ pnpm run tauri build
 
 - Dashboard trend chart is empty until the first successful export.
 - Time-range filters can show an empty chart when no sessions fall inside the selected window.
+- Test coverage is currently sparse; notebook smoke checks plus runtime sanity validation are recommended before release.
 
 ---

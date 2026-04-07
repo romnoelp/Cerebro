@@ -11,7 +11,7 @@ use crate::domain::{
 
 const EXPECTED_FEATURE_DIMENSION: usize = 13;
 
-// Matches the JSON produced by scaler_params.json (sklearn StandardScaler export).
+// Matches the JSON produced by notebook scaler_params.json export.
 #[derive(Debug, Deserialize)]
 pub struct ScalerParams {
     pub mean_: Vec<f32>,
@@ -40,7 +40,7 @@ pub struct OnnxInferenceRunner {
 
 impl OnnxInferenceRunner {
     /// To construct a live ONNX inference session and load the paired
-    /// StandardScaler parameters from disk. Both files must be valid before
+    /// notebook scaler parameters from disk. Both files must be valid before
     /// any inference is possible.
     pub fn load(paths: &ModelFilePaths) -> Result<Self, String> {
         let session = Session::builder()
@@ -67,7 +67,7 @@ impl OnnxInferenceRunner {
 impl InferenceRunner for OnnxInferenceRunner {
     fn predict(&mut self, packet: &EegPacket) -> Result<FocusReading, AppError> {
         let features = extract_feature_vector(packet, &mut self.prev_delta_relative);
-        let normalized = apply_standard_scaler(&features, &self.mean, &self.scale);
+        let normalized = apply_notebook_scaler(&features, &self.mean, &self.scale);
         run_onnx_session(&mut self.session, normalized).map_err(AppError::InferenceFailure)
     }
 }
@@ -122,8 +122,8 @@ fn ratio_feature(numerator: f32, denominator: f32) -> f32 {
 }
 
 // DDQN requires normalized input; scaler was fitted on training data, not live signal.
-// Mirrors sklearn StandardScaler.transform: (x − mean) / scale.
-fn apply_standard_scaler(features: &[f32; 13], mean: &[f32], scale: &[f32]) -> Vec<f32> {
+// Mirrors notebook scaler transform: (x - mean_) / scale_.
+fn apply_notebook_scaler(features: &[f32; 13], mean: &[f32], scale: &[f32]) -> Vec<f32> {
     features
         .iter()
         .enumerate()
